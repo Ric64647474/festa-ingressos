@@ -54,7 +54,8 @@ header .note{width:100%;font-weight:400}
 <section id="home">
 <div class="card"><b id="ftit">Nova festa</b>
 <label>Nome da festa</label><input id="fnome" placeholder="Ex.: Aniversário da Ana">
-<label>Data (opcional)</label><input id="fdata" type="date">
+<label>Data da festa</label><input id="fdata" type="date">
+<label>Horário (opcional)</label><input id="fhora" type="time">
 <button class="btn" id="fadd">Criar festa</button> <button class="btn s hide" id="fcancel">Cancelar edição</button><div class="note" id="fmsg"></div></div>
 <div id="flist"></div>
 </section>
@@ -128,7 +129,10 @@ function lget(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');return
 let LOCAL=lget(),FESTAS=LOCAL.festas,DB=null,dl=null,CACHE=[],cur=null,curF=null,unsubT=null;
 const pend=new Set(),gone=new Set();
 let editId=null;
-function resetEdit(){editId=null;$('fnome').value='';$('fdata').value='';$('ftit').textContent='Nova festa';$('fadd').textContent='Criar festa';$('fcancel').classList.add('hide');$('fmsg').textContent=''}
+function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function setMin(){$('fdata').min=editId?'':hojeISO()}
+function passou(data,hora){return new Date(data+'T'+(hora||'23:59')+':00')<new Date()}
+function resetEdit(){editId=null;$('fnome').value='';$('fdata').value='';$('fhora').value='';setMin();$('ftit').textContent='Nova festa';$('fadd').textContent='Criar festa';$('fcancel').classList.add('hide');$('fmsg').textContent=''}
 function lsave(){try{localStorage.setItem(KEY,JSON.stringify(LOCAL))}catch(e){}}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),5000)}
 function ask(msg,fn){$('mtxt').textContent=msg;$('modal').classList.remove('hide');$('mok').onclick=()=>{$('modal').classList.add('hide');fn()};$('mno').onclick=()=>$('modal').classList.add('hide')}
@@ -161,6 +165,7 @@ if(!window.firebase||firebaseConfig.apiKey==='COLE_AQUI'){
   setTimeout(()=>toast('Firebase não configurado: modo local (só neste aparelho).'),300);
 }else{
   firebase.initializeApp(firebaseConfig);auth=firebase.auth();
+  auth.setPersistence(firebase.auth.Auth.Persistence.NONE).then(()=>auth.signOut()).catch(()=>{}).then(()=>{
   auth.onAuthStateChanged(u=>{
     if(unsubF){unsubF();unsubF=null}
     if(u){
@@ -173,28 +178,35 @@ if(!window.firebase||firebaseConfig.apiKey==='COLE_AQUI'){
       $('sair').classList.add('hide');$('login').classList.remove('hide');setStatus();renderHome();
     }
   });
+  });
 }
 setStatus();
 function renderHome(){
   const L=[...FESTAS].sort((a,b)=>(b.criado||0)-(a.criado||0));
-  $('flist').innerHTML=L.length?L.map(f=>`<div class="card"><b>${esc(f.nome)}</b><div class="note">${f.data?'Data: '+esc(f.data.split('-').reverse().join('/')):'Sem data'}</div>
+  $('flist').innerHTML=L.length?L.map(f=>`<div class="card"><b>${esc(f.nome)}</b><div class="note">${f.data?'Data: '+esc(f.data.split('-').reverse().join('/'))+(f.hora?' às '+esc(f.hora):''):'Sem data'}</div>
     <button class="btn" data-o="${esc(f.id)}">Abrir</button> <button class="btn s" data-e="${esc(f.id)}">Editar</button> <button class="btn s" data-x="${esc(f.id)}" style="color:var(--er);border-color:var(--er)">Excluir festa</button></div>`).join(''):'<div class="note">Nenhuma festa ainda. Crie a primeira acima.</div>';
   document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>openFesta(b.dataset.o));
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.e);if(!f)return;
-    editId=f.id;$('fnome').value=f.nome;$('fdata').value=f.data||'';$('ftit').textContent='Editar festa';$('fadd').textContent='Salvar alterações';$('fcancel').classList.remove('hide');$('fmsg').textContent='';window.scrollTo(0,0)});
+    editId=f.id;$('fnome').value=f.nome;$('fdata').value=f.data||'';$('fhora').value=f.hora||'';setMin();$('ftit').textContent='Editar festa';$('fadd').textContent='Salvar alterações';$('fcancel').classList.remove('hide');$('fmsg').textContent='';window.scrollTo(0,0)});
   document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.x);if(f)ask('Excluir a festa "'+f.nome+'" e todos os seus ingressos? Não dá para desfazer.',()=>delFesta(f))});
 }
 $('fadd').onclick=async()=>{
   const nome=$('fnome').value.trim();if(!nome)return $('fmsg').textContent='Informe o nome da festa.';
   if(editId){const old=FESTAS.find(x=>x.id===editId);if(!old){resetEdit();return}
-    const f={...old,nome,data:$('fdata').value||''};
+    const dt=$('fdata').value,hr=$('fhora').value;
+    if(!dt)return $('fmsg').textContent='Informe a data da festa.';
+    if((dt!==old.data||hr!==(old.hora||''))&&passou(dt,hr))return $('fmsg').textContent='Essa data/horário já passou. Escolha uma data futura.';
+    const f={...old,nome,data:dt,hora:hr};
     try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{const i=LOCAL.festas.findIndex(x=>x.id===f.id);LOCAL.festas[i]=f;lsave()}
       resetEdit();renderHome();toast('Festa atualizada')}
     catch(e){$('fmsg').textContent='Erro ao salvar: '+(e&&e.message||e)}
     return}
-  const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),nome,data:$('fdata').value||'',criado:Date.now()};
+  const dt=$('fdata').value,hr=$('fhora').value;
+  if(!dt)return $('fmsg').textContent='Informe a data da festa.';
+  if(passou(dt,hr))return $('fmsg').textContent='Essa data/horário já passou. Escolha uma data futura.';
+  const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),nome,data:dt,hora:hr,criado:Date.now()};
   try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{LOCAL.festas.push(f);lsave()}
-    $('fmsg').textContent='';$('fnome').value='';$('fdata').value='';openFesta(f.id,f)}
+    $('fmsg').textContent='';$('fnome').value='';$('fdata').value='';$('fhora').value='';openFesta(f.id,f)}
   catch(e){$('fmsg').textContent='Erro ao criar: '+(e&&e.message||e)}
 };
 function openFesta(id,f){
@@ -211,6 +223,7 @@ function goHome(){
 }
 $('back').onclick=goHome;
 $('fcancel').onclick=resetEdit;
+setMin();
 function apply(list){
   const old=new Map(CACHE.map(t=>[t.codigo,t]));
   const out=list.filter(n=>!gone.has(n.codigo)).map(n=>{const o=old.get(n.codigo);return(o&&o.entrada&&!n.entrada)?o:n});
@@ -218,7 +231,7 @@ function apply(list){
   pend.forEach(c=>{if(!have.has(c)&&old.has(c))out.push(old.get(c))});
   CACHE=out;if(dashOn())render();
 }
-setInterval(async()=>{if(!DB||!dashOn())return;try{apply((await tcol().get()).docs.map(x=>x.data()))}catch(e){}},4000);
+/* atualização em tempo real via onSnapshot do Firestore */
 async function put(t){
   const i=CACHE.findIndex(x=>x.codigo===t.codigo);if(i>=0)CACHE[i]=t;else CACHE.push(t);
   if(DB){pend.add(t.codigo);try{await tcol().doc(t.codigo).set(t)}finally{pend.delete(t.codigo)}}else{LOCAL.t[cur]=CACHE;lsave()}
@@ -372,7 +385,13 @@ function render(){
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{
     const t=CACHE.find(x=>x.codigo===b.dataset.d);if(t)ask('Excluir o ingresso '+t.codigo+' de '+t.nome+'? Não dá para desfazer.',()=>delT(t.codigo))});
 }
-$('refresh').onclick=async()=>{if(DB){try{apply((await tcol().get()).docs.map(x=>x.data()))}catch(e){}}render()};
+$('refresh').onclick=async()=>{
+  const b=$('refresh');b.disabled=true;b.textContent='Atualizando…';
+  try{if(DB&&cur){const s=await tcol().get(DB.runTransaction?{source:'server'}:undefined);apply(s.docs.map(x=>x.data()))}
+    render();toast('Dashboard atualizado')}
+  catch(e){toast('Não foi possível atualizar: '+(e&&e.message||e))}
+  b.disabled=false;b.textContent='Atualizar agora';
+};
 $('busca').oninput=render;
 $('csv').onclick=()=>{const l=[['codigo','nome','cpf','contato','tipo','criado','entrada']].concat(CACHE.map(t=>[t.codigo,t.nome,t.cpf,t.contato,t.tipo,fmt(t.criado),fmt(t.entrada)]));
   salvar('ingressos-'+((curF&&curF.nome)||'festa').replace(/[^\w-]+/g,'_')+'.csv',new Blob(['\ufeff'+l.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n')],{type:'text/csv'}))};
