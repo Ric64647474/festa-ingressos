@@ -47,6 +47,8 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 header .note{width:100%;font-weight:400}
 #login{position:fixed;inset:0;background:var(--bg);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px}
 #login.hide{display:none}
+#apmodal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80}
+#apmodal.hide{display:none}
 </style>
 </head>
 <body>
@@ -105,7 +107,7 @@ header .note{width:100%;font-weight:400}
 <div class="card" style="margin-top:12px">
 <input id="busca" placeholder="Buscar por nome, CPF ou código">
 <button class="btn s" id="refresh" style="margin:6px 0">Atualizar agora</button><div class="note" id="sync"></div>
-<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Tipo</th><th>Criado em</th><th>Entrada</th><th>Validado por</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Tipo</th><th>Criado em</th><th>Emitido por</th><th>Entrada</th><th>Validado por</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
 <button class="btn s" id="csv">Exportar CSV</button>
 <button class="btn s" id="limpar" style="color:var(--er);border-color:var(--er)">Apagar tudo</button>
 </div>
@@ -117,6 +119,11 @@ header .note{width:100%;font-weight:400}
 <label>E-mail</label><input id="lemail" type="email" autocomplete="username">
 <label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
 <button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
+<div id="apmodal" class="hide"><div class="card" style="width:100%;max-width:380px"><b>Escolha seu apelido</b>
+<div class="note" style="margin:6px 0">Primeiro acesso. Esse apelido fica ligado a este login <b>para sempre</b> e aparece nos ingressos que você emitir e nas entradas que validar. Não dá para trocar depois.</div>
+<input id="apin" maxlength="20" placeholder="Ex.: Ana, Portaria 1">
+<button class="btn" id="apok">Salvar apelido</button> <button class="btn s" id="apsair">Sair</button>
+<div class="note" id="apmsg"></div></div></div>
 <div id="modal" class="hide"><div class="card" style="max-width:380px"><div id="mtxt" style="margin-bottom:6px"></div>
 <button class="btn" id="mok" style="background:var(--er)">Confirmar</button> <button class="btn s" id="mno">Cancelar</button></div></div>
 <div id="toast" class="hide"></div>
@@ -150,6 +157,31 @@ const firebaseConfig={
   appId:"1:420841189182:web:c3351aa4c56de1d068066f"
 };
 /* ========================================================================================= */
+function pedirApelido(fs,u){return new Promise(res=>{
+  const box=$('apmodal');box.classList.remove('hide');$('apmsg').textContent='';$('apin').focus();
+  $('apsair').onclick=()=>{box.classList.add('hide');auth.signOut()};
+  $('apok').onclick=async()=>{
+    const ap=$('apin').value.trim().replace(/\s+/g,' ');
+    if(ap.length<2||ap.length>20)return $('apmsg').textContent='Use de 2 a 20 caracteres.';
+    const key=ap.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+    if(!key)return $('apmsg').textContent='Use letras ou números.';
+    $('apok').disabled=true;$('apmsg').textContent='Salvando…';
+    try{
+      await fs.runTransaction(async tx=>{
+        const kref=fs.collection('apelidos').doc(key),uref=fs.collection('usuarios').doc(u.uid);
+        const k=await tx.get(kref);const us=await tx.get(uref);
+        if(us.exists)throw new Error('JA');
+        if(k.exists)throw new Error('USO');
+        tx.set(kref,{uid:u.uid});tx.set(uref,{apelido:ap,email:u.email||'',criado:Date.now()});
+      });
+      box.classList.add('hide');res(ap);
+    }catch(e){
+      if(e&&e.message==='JA'){const d=await fs.collection('usuarios').doc(u.uid).get();box.classList.add('hide');res(d.data().apelido)}
+      else $('apmsg').textContent=e&&e.message==='USO'?'Esse apelido já está em uso. Escolha outro.':'Não foi possível salvar: '+(e&&e.message||e);
+    }
+    $('apok').disabled=false;
+  };
+})}
 let auth=null,unsubF=null;
 function doLogin(){
   const e=$('lemail').value.trim(),p=$('lsenha').value;
@@ -166,10 +198,14 @@ if(!window.firebase||firebaseConfig.apiKey==='COLE_AQUI'){
 }else{
   firebase.initializeApp(firebaseConfig);auth=firebase.auth();
   auth.setPersistence(firebase.auth.Auth.Persistence.NONE).then(()=>auth.signOut()).catch(()=>{}).then(()=>{
-  auth.onAuthStateChanged(u=>{
+  auth.onAuthStateChanged(async u=>{
     if(unsubF){unsubF();unsubF=null}
     if(u){
-      who=u.email||'';DB=firebase.firestore();
+      const fs=firebase.firestore();who='';
+      try{const ud=await fs.collection('usuarios').doc(u.uid).get();who=ud.exists?ud.data().apelido:await pedirApelido(fs,u)}
+      catch(e){who=u.email||'';toast('Não foi possível carregar seu apelido: '+(e&&e.message||e))}
+      if(!auth.currentUser)return;
+      DB=fs;
       $('login').classList.add('hide');$('sair').classList.remove('hide');FESTAS=[];setStatus();renderHome();
       unsubF=DB.collection('festas').onSnapshot(s=>{FESTAS=s.docs.map(x=>x.data());renderHome()},
         e=>toast('Erro ao ler as festas: '+(e&&e.message||e)));
@@ -276,7 +312,7 @@ $('gerarBtn').onclick=async()=>{
   if(!validCPF(cpf))return g.textContent='CPF inválido.';
   if(CACHE.some(x=>x.cpf===cpf))return g.textContent='Já existe ingresso para este CPF nesta festa.';
   let c;do{c=code()}while(CACHE.some(x=>x.codigo===c));
-  const t={codigo:c,nome,cpf,contato:$('contato').value.trim(),tipo:$('tipo').value.trim()||'Normal',criado:Date.now(),entrada:null};
+  const t={codigo:c,nome,cpf,contato:$('contato').value.trim(),tipo:$('tipo').value.trim()||'Normal',criado:Date.now(),emitidoPor:who||'este aparelho',entrada:null};
   try{await put(t);g.textContent='Ingresso gerado!';showTicket(t);['nome','cpf','contato'].forEach(i=>$(i).value='')}
   catch(e){g.textContent='Não foi possível salvar: '+(e&&e.message||e)}
 };
@@ -377,7 +413,7 @@ function render(){
   $('kpis').innerHTML=[['Ingressos',d.length],['Entraram',ent],['Faltam',d.length-ent],['Presença',d.length?Math.round(ent/d.length*100)+'%':'0%']]
     .map(k=>`<div class="card kpi"><b>${k[1]}</b><span>${k[0]}</span></div>`).join('');
   $('rows').innerHTML=d.filter(x=>(x.nome+x.cpf+x.codigo).toLowerCase().includes(q)).sort((a,b)=>b.criado-a.criado).map(t=>
-    `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td>
+    `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td><td>${t.emitidoPor?esc(t.emitidoPor):'—'}</td>
     <td>${t.entrada?'<span class="tag t-ok">'+fmt(t.entrada)+'</span>':'<span class="tag t-wa">Pendente</span>'}</td>
     <td>${t.entradaPor?esc(t.entradaPor):'—'}</td>
     <td><button class="btn s" style="margin:0;padding:4px 8px" data-c="${esc(t.codigo)}">QR</button></td>
@@ -395,7 +431,7 @@ $('refresh').onclick=async()=>{
   b.disabled=false;b.textContent='Atualizar agora';
 };
 $('busca').oninput=render;
-$('csv').onclick=()=>{const l=[['codigo','nome','cpf','contato','tipo','criado','entrada','validado_por']].concat(CACHE.map(t=>[t.codigo,t.nome,t.cpf,t.contato,t.tipo,fmt(t.criado),fmt(t.entrada),t.entradaPor||'']));
+$('csv').onclick=()=>{const l=[['codigo','nome','cpf','contato','tipo','criado','emitido_por','entrada','validado_por']].concat(CACHE.map(t=>[t.codigo,t.nome,t.cpf,t.contato,t.tipo,fmt(t.criado),t.emitidoPor||'',fmt(t.entrada),t.entradaPor||'']));
   salvar('ingressos-'+((curF&&curF.nome)||'festa').replace(/[^\w-]+/g,'_')+'.csv',new Blob(['\ufeff'+l.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n')],{type:'text/csv'}))};
 $('limpar').onclick=()=>ask('Apagar TODOS os ingressos desta festa? Não dá para desfazer.',async()=>{
   const all=CACHE.slice();for(const t of all)await delT(t.codigo);toast(all.length+' ingressos apagados')});
