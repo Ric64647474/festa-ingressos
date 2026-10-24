@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Festa • Ingressos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎉</text></svg>">
+<style>
+:root{--bg:#f6f5fb;--card:#fff;--tx:#1c1b26;--mu:#6b6a7c;--pr:#6d4aff;--ok:#16a34a;--er:#dc2626;--wa:#d97706;--bd:#e4e2f0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14131c;--card:#1e1d2a;--tx:#f0eff7;--mu:#9a99ad;--bd:#33324a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px}
+header{padding:14px 16px;font-weight:700;font-size:18px}
+nav{display:flex;gap:6px;padding:0 12px 10px;overflow-x:auto}
+nav button{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:20px;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--pr);color:#fff;border-color:var(--pr)}
+main{padding:0 12px 24px;max-width:900px;margin:auto}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mu);margin:8px 0 3px}
+input{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font-size:15px}
+.btn{background:var(--pr);color:#fff;border:0;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:15px;margin-top:10px}
+.btn.s{background:transparent;color:var(--pr);border:1px solid var(--pr)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kpi{text-align:center}.kpi b{display:block;font-size:28px}.kpi span{color:var(--mu);font-size:13px}
+.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+.tag{padding:2px 8px;border-radius:10px;font-size:12px;color:#fff}
+.t-ok{background:var(--ok)}.t-wa{background:var(--wa)}
+.hide{display:none}
+#qr,#tqr{display:flex;justify-content:center;padding:12px;background:#fff;border-radius:10px;width:fit-content;margin:10px auto}
+video{width:100%;max-height:300px;border-radius:10px;background:#000}
+.res{padding:14px;border-radius:10px;margin-top:10px;color:#fff;font-weight:600}
+.res.ok{background:var(--ok)}.res.er{background:var(--er)}.res.wa{background:var(--wa)}
+.note{color:var(--mu);font-size:12px}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+#modal.hide{display:none}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));background:var(--tx);color:var(--bg);padding:10px 14px;border-radius:10px;z-index:60}
+#home{padding:0 12px 24px;max-width:900px;margin:auto}
+header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+header .note{width:100%;font-weight:400}
+#login{position:fixed;inset:0;background:var(--bg);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px}
+#login.hide{display:none}
+</style>
+</head>
+<body>
+<header><span>🎉</span><b id="ttl">Minhas festas</b><button class="btn s hide" id="back" style="margin:0;padding:4px 10px">← Festas</button><button class="btn s hide" id="sair" style="margin:0;padding:4px 10px">Sair</button><div class="note" id="st"></div></header>
+<section id="home">
+<div class="card"><b id="ftit">Nova festa</b>
+<label>Nome da festa</label><input id="fnome" placeholder="Ex.: Aniversário da Ana">
+<label>Data (opcional)</label><input id="fdata" type="date">
+<button class="btn" id="fadd">Criar festa</button> <button class="btn s hide" id="fcancel">Cancelar edição</button><div class="note" id="fmsg"></div></div>
+<div id="flist"></div>
+</section>
+<div id="appv" class="hide">
+<nav id="nav">
+<button data-t="gerar" class="on">Gerar ingresso</button>
+<button data-t="portaria">Portaria (leitor)</button>
+<button data-t="dash">Dashboard</button>
+</nav>
+<main>
+
+<section id="gerar">
+<div class="card">
+<b>Novo convidado</b>
+<label>Nome completo</label><input id="nome">
+<label>CPF</label><input id="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+<label>Telefone / e-mail (opcional)</label><input id="contato">
+<label>Tipo de ingresso</label><input id="tipo" value="Normal" placeholder="Normal, VIP, Camarote...">
+<button class="btn" id="gerarBtn">Gerar ingresso</button>
+<div id="gmsg" class="note"></div>
+</div>
+<div id="tk" class="card hide" style="text-align:center">
+<b id="tnome"></b><div class="note" id="tinfo"></div>
+<div id="tqr"></div>
+<div class="note" id="tcod"></div>
+<button class="btn s" id="expPng">Exportar ingresso (imagem PNG)</button>
+<button class="btn s" id="expPdf">Exportar ingresso (PDF)</button>
+</div>
+</section>
+
+<section id="portaria" class="hide">
+<div class="card">
+<b>Validar entrada</b>
+<video id="vid" playsinline muted class="hide"></video>
+<canvas id="cv" class="hide"></canvas>
+<button class="btn" id="camBtn">Ativar câmera</button>
+<label class="btn s" style="display:inline-block;margin-left:6px;cursor:pointer">📷 Tirar foto do QR<input id="foto" type="file" accept="image/*" capture="environment" hidden></label>
+<label>Ou digite/cole o código do ingresso</label>
+<input id="manual" placeholder="Ex.: FST-AB12CD">
+<button class="btn s" id="manBtn">Validar código</button>
+<div id="res"></div>
+</div>
+</section>
+
+<section id="dash" class="hide">
+<div class="grid" id="kpis"></div>
+<div class="card" style="margin-top:12px">
+<input id="busca" placeholder="Buscar por nome, CPF ou código">
+<button class="btn s" id="refresh" style="margin:6px 0">Atualizar agora</button><div class="note" id="sync"></div>
+<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Tipo</th><th>Criado em</th><th>Entrada</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<button class="btn s" id="csv">Exportar CSV</button>
+<button class="btn s" id="limpar" style="color:var(--er);border-color:var(--er)">Apagar tudo</button>
+</div>
+
+</section>
+</main>
+</div>
+<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b>
+<label>E-mail</label><input id="lemail" type="email" autocomplete="username">
+<label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
+<button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
+<div id="modal" class="hide"><div class="card" style="max-width:380px"><div id="mtxt" style="margin-bottom:6px"></div>
+<button class="btn" id="mok" style="background:var(--er)">Confirmar</button> <button class="btn s" id="mno">Cancelar</button></div></div>
+<div id="toast" class="hide"></div>
+<script>
+const KEY='festas_v2';
+const $=id=>document.getElementById(id);
+const fmt=t=>t?new Date(t).toLocaleString('pt-BR'):'—';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function lget(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');return o&&o.festas?o:{festas:[],t:{}}}catch(e){return {festas:[],t:{}}}}
+let LOCAL=lget(),FESTAS=LOCAL.festas,DB=null,dl=null,CACHE=[],cur=null,curF=null,unsubT=null;
+const pend=new Set(),gone=new Set();
+let editId=null;
+function resetEdit(){editId=null;$('fnome').value='';$('fdata').value='';$('ftit').textContent='Nova festa';$('fadd').textContent='Criar festa';$('fcancel').classList.add('hide');$('fmsg').textContent=''}
+function lsave(){try{localStorage.setItem(KEY,JSON.stringify(LOCAL))}catch(e){}}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),5000)}
+function ask(msg,fn){$('mtxt').textContent=msg;$('modal').classList.remove('hide');$('mok').onclick=()=>{$('modal').classList.add('hide');fn()};$('mno').onclick=()=>$('modal').classList.add('hide')}
+let who='';
+function setStatus(){$('st').textContent=DB?'🟢 Online e sincronizado'+(who?' • '+who:''):'🟠 Modo local (só neste aparelho)'}
+const dashOn=()=>cur&&!$('dash').classList.contains('hide');
+const tcol=()=>DB?DB.collection('festas/'+cur+'/tickets'):null;
+/* ===== CONFIGURAÇÃO DO FIREBASE: cole aqui os dados do seu projeto (veja o tutorial) ===== */
+const firebaseConfig={
+  apiKey:"AIzaSyCG6DiY13zI37zJfnp3NABOJxCkZ99dxOU",
+  authDomain:"ingressos-ace26.firebaseapp.com",
+  projectId:"ingressos-ace26",
+  storageBucket:"ingressos-ace26.firebasestorage.app",
+  messagingSenderId:"420841189182",
+  appId:"1:420841189182:web:c3351aa4c56de1d068066f"
+};
+/* ========================================================================================= */
+let auth=null,unsubF=null;
+function doLogin(){
+  const e=$('lemail').value.trim(),p=$('lsenha').value;
+  if(!e||!p)return $('lmsg').textContent='Informe e-mail e senha.';
+  $('lmsg').textContent='Entrando…';
+  auth.signInWithEmailAndPassword(e,p).then(()=>{$('lmsg').textContent='';$('lsenha').value=''}).catch(()=>{$('lmsg').textContent='E-mail ou senha incorretos.'});
+}
+$('lbtn').onclick=()=>{if(auth)doLogin()};
+$('lsenha').onkeydown=e=>{if(e.key==='Enter')$('lbtn').click()};
+$('sair').onclick=()=>{if(auth)auth.signOut()};
+if(!window.firebase||firebaseConfig.apiKey==='COLE_AQUI'){
+  $('login').classList.add('hide');
+  setTimeout(()=>toast('Firebase não configurado: modo local (só neste aparelho).'),300);
+}else{
+  firebase.initializeApp(firebaseConfig);auth=firebase.auth();
+  auth.onAuthStateChanged(u=>{
+    if(unsubF){unsubF();unsubF=null}
+    if(u){
+      who=u.email||'';DB=firebase.firestore();
+      $('login').classList.add('hide');$('sair').classList.remove('hide');FESTAS=[];setStatus();renderHome();
+      unsubF=DB.collection('festas').onSnapshot(s=>{FESTAS=s.docs.map(x=>x.data());renderHome()},
+        e=>toast('Erro ao ler as festas: '+(e&&e.message||e)));
+    }else{
+      DB=null;who='';if(cur)goHome();FESTAS=[];
+      $('sair').classList.add('hide');$('login').classList.remove('hide');setStatus();renderHome();
+    }
+  });
+}
+setStatus();
+function renderHome(){
+  const L=[...FESTAS].sort((a,b)=>(b.criado||0)-(a.criado||0));
+  $('flist').innerHTML=L.length?L.map(f=>`<div class="card"><b>${esc(f.nome)}</b><div class="note">${f.data?'Data: '+esc(f.data.split('-').reverse().join('/')):'Sem data'}</div>
+    <button class="btn" data-o="${esc(f.id)}">Abrir</button> <button class="btn s" data-e="${esc(f.id)}">Editar</button> <button class="btn s" data-x="${esc(f.id)}" style="color:var(--er);border-color:var(--er)">Excluir festa</button></div>`).join(''):'<div class="note">Nenhuma festa ainda. Crie a primeira acima.</div>';
+  document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>openFesta(b.dataset.o));
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.e);if(!f)return;
+    editId=f.id;$('fnome').value=f.nome;$('fdata').value=f.data||'';$('ftit').textContent='Editar festa';$('fadd').textContent='Salvar alterações';$('fcancel').classList.remove('hide');$('fmsg').textContent='';window.scrollTo(0,0)});
+  document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.x);if(f)ask('Excluir a festa "'+f.nome+'" e todos os seus ingressos? Não dá para desfazer.',()=>delFesta(f))});
+}
+$('fadd').onclick=async()=>{
+  const nome=$('fnome').value.trim();if(!nome)return $('fmsg').textContent='Informe o nome da festa.';
+  if(editId){const old=FESTAS.find(x=>x.id===editId);if(!old){resetEdit();return}
+    const f={...old,nome,data:$('fdata').value||''};
+    try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{const i=LOCAL.festas.findIndex(x=>x.id===f.id);LOCAL.festas[i]=f;lsave()}
+      resetEdit();renderHome();toast('Festa atualizada')}
+    catch(e){$('fmsg').textContent='Erro ao salvar: '+(e&&e.message||e)}
+    return}
+  const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),nome,data:$('fdata').value||'',criado:Date.now()};
+  try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{LOCAL.festas.push(f);lsave()}
+    $('fmsg').textContent='';$('fnome').value='';$('fdata').value='';openFesta(f.id,f)}
+  catch(e){$('fmsg').textContent='Erro ao criar: '+(e&&e.message||e)}
+};
+function openFesta(id,f){
+  curF=f||FESTAS.find(x=>x.id===id);if(!curF)return toast('Festa não encontrada');
+  cur=id;if(unsubT){unsubT();unsubT=null}pend.clear();gone.clear();
+  CACHE=DB?[]:(LOCAL.t[id]||[]);
+  $('home').classList.add('hide');$('appv').classList.remove('hide');$('back').classList.remove('hide');$('ttl').textContent=curF.nome;
+  $('tk').classList.add('hide');document.querySelector('#nav [data-t=gerar]').click();
+  if(DB)unsubT=tcol().onSnapshot(s=>apply(s.docs.map(x=>x.data())),e=>toast('Erro ao ler ingressos: '+(e&&e.message||e)));
+}
+function goHome(){
+  stopCam();if(unsubT){unsubT();unsubT=null}cur=null;curF=null;CACHE=[];
+  $('appv').classList.add('hide');$('home').classList.remove('hide');$('back').classList.add('hide');$('ttl').textContent='Minhas festas';renderHome();
+}
+$('back').onclick=goHome;
+$('fcancel').onclick=resetEdit;
+function apply(list){
+  const old=new Map(CACHE.map(t=>[t.codigo,t]));
+  const out=list.filter(n=>!gone.has(n.codigo)).map(n=>{const o=old.get(n.codigo);return(o&&o.entrada&&!n.entrada)?o:n});
+  const have=new Set(out.map(t=>t.codigo));
+  pend.forEach(c=>{if(!have.has(c)&&old.has(c))out.push(old.get(c))});
+  CACHE=out;if(dashOn())render();
+}
+setInterval(async()=>{if(!DB||!dashOn())return;try{apply((await tcol().get()).docs.map(x=>x.data()))}catch(e){}},4000);
+async function put(t){
+  const i=CACHE.findIndex(x=>x.codigo===t.codigo);if(i>=0)CACHE[i]=t;else CACHE.push(t);
+  if(DB){pend.add(t.codigo);try{await tcol().doc(t.codigo).set(t)}finally{pend.delete(t.codigo)}}else{LOCAL.t[cur]=CACHE;lsave()}
+  if(dashOn())render();
+}
+async function delT(c){
+  gone.add(c);CACHE=CACHE.filter(x=>x.codigo!==c);
+  try{if(DB)await tcol().doc(c).delete();else{LOCAL.t[cur]=CACHE;lsave()}}
+  catch(e){gone.delete(c);toast('Erro ao excluir: '+(e&&e.message||e))}
+  if(dashOn())render();
+}
+async function delFesta(f){
+  try{
+    if(DB){const col=DB.collection('festas/'+f.id+'/tickets');const s=await col.get();for(const d of s.docs)await col.doc(d.id).delete();await DB.collection('festas').doc(f.id).delete()}
+    else{LOCAL.festas=LOCAL.festas.filter(x=>x.id!==f.id);delete LOCAL.t[f.id];FESTAS=LOCAL.festas;lsave();renderHome()}
+    toast('Festa excluída')
+  }catch(e){toast('Erro ao excluir a festa: '+(e&&e.message||e))}
+}
+async function salvar(nome,data){
+  if(dl){try{await dl.save({filename:nome,data});return}catch(e){if(e&&e.code==='declined')return}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));a.download=nome;a.click();
+}
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b));
+  ['gerar','portaria','dash'].forEach(s=>$(s).classList.toggle('hide',s!==b.dataset.t));
+  if(b.dataset.t==='dash')render();if(b.dataset.t!=='portaria')stopCam();
+});
+function validCPF(c){c=c.replace(/\D/g,'');if(c.length!==11||/^(\d)\1+$/.test(c))return false;
+  for(let t=9;t<11;t++){let s=0;for(let i=0;i<t;i++)s+=c[i]*(t+1-i);if((s*10%11)%10!=c[t])return false}return true}
+$('cpf').oninput=e=>{let v=e.target.value.replace(/\D/g,'').slice(0,11);
+  v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');e.target.value=v};
+function code(){const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)];return 'FST-'+s}
+let lastT=null;
+function showTicket(t){
+  $('tk').classList.remove('hide');$('tnome').textContent=t.nome;
+  $('tinfo').textContent=t.tipo+' • CPF '+t.cpf;$('tcod').textContent=t.codigo;
+  $('tqr').innerHTML='';new QRCode($('tqr'),{text:t.codigo,width:200,height:200,correctLevel:QRCode.CorrectLevel.H});lastT=t;
+}
+$('gerarBtn').onclick=async()=>{
+  const nome=$('nome').value.trim(),cpf=$('cpf').value.trim(),g=$('gmsg');
+  if(!nome)return g.textContent='Informe o nome.';
+  if(!validCPF(cpf))return g.textContent='CPF inválido.';
+  if(CACHE.some(x=>x.cpf===cpf))return g.textContent='Já existe ingresso para este CPF nesta festa.';
+  let c;do{c=code()}while(CACHE.some(x=>x.codigo===c));
+  const t={codigo:c,nome,cpf,contato:$('contato').value.trim(),tipo:$('tipo').value.trim()||'Normal',criado:Date.now(),entrada:null};
+  try{await put(t);g.textContent='Ingresso gerado!';showTicket(t);['nome','cpf','contato'].forEach(i=>$(i).value='')}
+  catch(e){g.textContent='Não foi possível salvar: '+(e&&e.message||e)}
+};
+function ticketCanvas(t){
+  const W=800,H=1280,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  x.fillStyle='#14131c';x.fillRect(0,0,W,H);
+  x.fillStyle='#6d4aff';x.fillRect(0,0,W,120);
+  let ttl=('INGRESSO • '+(curF?curF.nome:'FESTA')).toUpperCase();x.font='bold 44px sans-serif';
+  while(x.measureText(ttl).width>720&&ttl.length>4)ttl=ttl.slice(0,-2);
+  x.fillStyle='#fff';x.textAlign='center';x.fillText(ttl,W/2,76);
+  const L=(lab,val,y)=>{x.textAlign='left';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText(lab,60,y);
+    x.fillStyle='#f0eff7';x.font='bold 38px sans-serif';let v=String(val),s=v;
+    while(x.measureText(s).width>680&&s.length>3){s=s.slice(0,-1)}if(s!==v)s=s.trim()+'…';x.fillText(s,60,y+44)};
+  L('Nome',t.nome,190);L('CPF',t.cpf,300);L('Tipo',t.tipo,410);
+  const d=document.createElement('div');
+  new QRCode(d,{text:t.codigo,width:480,height:480,correctLevel:QRCode.CorrectLevel.H});
+  const q=d.querySelector('canvas');
+  x.fillStyle='#fff';x.fillRect(120,500,560,560);
+  x.imageSmoothingEnabled=false;x.drawImage(q,160,520,480,480);
+  x.textAlign='center';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText('Código do ingresso',W/2,1075);
+  x.fillStyle='#f0eff7';x.font='bold 60px monospace';x.fillText(t.codigo,W/2,1145);
+  x.fillStyle='#9a99ad';x.font='24px sans-serif';x.fillText('Apresente este QR code na entrada',W/2,1220);
+  return c;
+}
+$('expPng').onclick=()=>{if(lastT)ticketCanvas(lastT).toBlob(b=>salvar('ingresso-'+lastT.codigo+'.png',b),'image/png')};
+$('expPdf').onclick=async()=>{if(!lastT)return;
+  try{const c=ticketCanvas(lastT);const {jsPDF}=window.jspdf;
+    const p=new jsPDF({unit:'mm',format:[100,160]});p.addImage(c.toDataURL('image/png'),'PNG',0,0,100,160);
+    await salvar('ingresso-'+lastT.codigo+'.pdf',p.output('blob'))}
+  catch(e){toast('Erro ao gerar o PDF: '+(e&&e.message||e))}};
+async function validar(cod){
+  cod=cod.trim().toUpperCase().replace(/\s/g,'').replace(/[–—_]/g,'-');
+  if(/^[A-Z0-9]{6}$/.test(cod))cod='FST-'+cod;
+  const r=$('res');r.className='res wa';r.textContent='Validando '+cod+'…';
+  try{
+    if(DB&&DB.runTransaction){
+      const ref=tcol().doc(cod),now=Date.now();
+      const res=await DB.runTransaction(async tx=>{const s=await tx.get(ref);if(!s.exists)return{st:'nf'};const d=s.data();
+        if(d.entrada)return{st:'used',d};tx.update(ref,{entrada:now});return{st:'ok',d:{...d,entrada:now}}});
+      if(res.st==='nf'){r.className='res er';r.textContent='❌ Ingresso não encontrado nesta festa: '+cod;return}
+      if(res.st==='used'){r.className='res wa';r.textContent='⚠️ JÁ UTILIZADO — '+res.d.nome+' entrou em '+fmt(res.d.entrada);return}
+      const i=CACHE.findIndex(x=>x.codigo===cod);if(i>=0)CACHE[i]=res.d;if(dashOn())render();
+      r.className='res ok';r.textContent='✅ Liberado: '+res.d.nome+' ('+res.d.tipo+') — '+fmt(res.d.entrada)+' • gravado ✔';return}
+    let t=CACHE.find(x=>String(x.codigo).toUpperCase()===cod);
+    if(!t&&DB){try{const s=await tcol().doc(cod).get();const ex=typeof s.exists==='function'?s.exists():s.exists;t=ex?s.data():null}catch(e){}}
+    if(!t){r.className='res er';r.textContent='❌ Ingresso não encontrado nesta festa: '+cod+' ('+CACHE.length+' ingressos carregados'+(DB?'':', modo local: só vê os gerados neste aparelho')+')';return}
+    if(t.entrada){r.className='res wa';r.textContent='⚠️ JÁ UTILIZADO — '+t.nome+' entrou em '+fmt(t.entrada);return}
+    t={...t,entrada:Date.now()};await put(t);let nota=' • salvo só neste aparelho';
+    if(DB){let dd=(await tcol().doc(t.codigo).get()).data();
+      if(!(dd&&dd.entrada)){try{await tcol().doc(t.codigo).update({entrada:t.entrada});dd=(await tcol().doc(t.codigo).get()).data()}catch(e){}}
+      nota=(dd&&dd.entrada)?' • gravado no banco ✔':' • ⚠️ o banco NÃO confirmou a gravação'}
+    r.className=nota.includes('⚠️')?'res wa':'res ok';
+    r.textContent='✅ Liberado: '+t.nome+' ('+t.tipo+') — '+fmt(t.entrada)+nota;
+  }catch(e){r.className='res er';r.textContent='Erro ao validar: '+(e&&e.message||e)}
+}
+$('manBtn').onclick=()=>{if($('manual').value.trim())validar($('manual').value);$('manual').value=''};
+let stream=null,raf=null,busy=false;
+function stopCam(){if(raf)cancelAnimationFrame(raf);raf=null;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('vid').classList.add('hide');$('camBtn').textContent='Ativar câmera'}
+$('camBtn').onclick=async()=>{
+  if(stream)return stopCam();
+  const r=$('res');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){r.className='res er';r.textContent='Câmera ao vivo indisponível aqui (precisa de HTTPS e permissão). Use "Tirar foto do QR".';return}
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const v=$('vid');v.srcObject=stream;v.classList.remove('hide');await v.play();$('camBtn').textContent='Parar câmera';scan()}
+  catch(e){r.className='res er';r.textContent='Câmera ao vivo bloqueada ('+(e&&e.name||'erro')+'). Use "Tirar foto do QR" ou digite o código.'}
+};
+function scan(){
+  const v=$('vid'),c=$('cv'),x=c.getContext('2d',{willReadFrequently:true});
+  const loop=()=>{if(!stream)return;
+    if(v.readyState===v.HAVE_ENOUGH_DATA&&!busy&&typeof jsQR!=='undefined'){
+      c.width=v.videoWidth;c.height=v.videoHeight;x.drawImage(v,0,0);
+      const img=x.getImageData(0,0,c.width,c.height);const q=jsQR(img.data,img.width,img.height);
+      if(q&&q.data){busy=true;validar(q.data);setTimeout(()=>busy=false,2500)}}
+    raf=requestAnimationFrame(loop)};loop();
+}
+async function decodeBmp(bmp){
+  if(window.BarcodeDetector){try{const b=await new BarcodeDetector({formats:['qr_code']}).detect(bmp);if(b[0])return b[0].rawValue}catch(e){}}
+  if(typeof jsQR==='undefined')throw new Error('leitor de QR não carregou');
+  const c=$('cv'),x=c.getContext('2d',{willReadFrequently:true});
+  for(const m of [1600,1000,600]){
+    const s=Math.min(1,m/Math.max(bmp.width,bmp.height));c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);
+    x.drawImage(bmp,0,0,c.width,c.height);const d=x.getImageData(0,0,c.width,c.height);
+    const q=jsQR(d.data,d.width,d.height,{inversionAttempts:'attemptBoth'});if(q&&q.data)return q.data}
+  return null;
+}
+$('foto').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  const r=$('res');r.className='res wa';r.textContent='Lendo a foto…';
+  try{const bmp=await createImageBitmap(f);const txt=await decodeBmp(bmp);
+    if(txt)validar(txt);else{r.className='res er';r.textContent='QR não identificado. Aproxime, enquadre só o QR e use boa luz.'}}
+  catch(err){r.className='res er';r.textContent='Não consegui ler a foto: '+(err&&err.message||err)}
+};
+function render(){
+  const d=CACHE,q=$('busca').value.toLowerCase();
+  const ent=d.filter(x=>x.entrada).length;
+  $('sync').textContent='Fonte: '+(DB?'banco compartilhado':'este aparelho')+' • '+d.length+' ingressos • atualizado às '+new Date().toLocaleTimeString('pt-BR');
+  $('kpis').innerHTML=[['Ingressos',d.length],['Entraram',ent],['Faltam',d.length-ent],['Presença',d.length?Math.round(ent/d.length*100)+'%':'0%']]
+    .map(k=>`<div class="card kpi"><b>${k[1]}</b><span>${k[0]}</span></div>`).join('');
+  $('rows').innerHTML=d.filter(x=>(x.nome+x.cpf+x.codigo).toLowerCase().includes(q)).sort((a,b)=>b.criado-a.criado).map(t=>
+    `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td>
+    <td>${t.entrada?'<span class="tag t-ok">'+fmt(t.entrada)+'</span>':'<span class="tag t-wa">Pendente</span>'}</td>
+    <td><button class="btn s" style="margin:0;padding:4px 8px" data-c="${esc(t.codigo)}">QR</button></td>
+    <td><button class="btn s" style="margin:0;padding:4px 8px;color:var(--er);border-color:var(--er)" data-d="${esc(t.codigo)}">Excluir</button></td></tr>`).join('');
+  document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{
+    const t=CACHE.find(x=>x.codigo===b.dataset.c);if(!t)return;document.querySelector('[data-t=gerar]').click();showTicket(t);window.scrollTo(0,0)});
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{
+    const t=CACHE.find(x=>x.codigo===b.dataset.d);if(t)ask('Excluir o ingresso '+t.codigo+' de '+t.nome+'? Não dá para desfazer.',()=>delT(t.codigo))});
+}
+$('refresh').onclick=async()=>{if(DB){try{apply((await tcol().get()).docs.map(x=>x.data()))}catch(e){}}render()};
+$('busca').oninput=render;
+$('csv').onclick=()=>{const l=[['codigo','nome','cpf','contato','tipo','criado','entrada']].concat(CACHE.map(t=>[t.codigo,t.nome,t.cpf,t.contato,t.tipo,fmt(t.criado),fmt(t.entrada)]));
+  salvar('ingressos-'+((curF&&curF.nome)||'festa').replace(/[^\w-]+/g,'_')+'.csv',new Blob(['\ufeff'+l.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n')],{type:'text/csv'}))};
+$('limpar').onclick=()=>ask('Apagar TODOS os ingressos desta festa? Não dá para desfazer.',async()=>{
+  const all=CACHE.slice();for(const t of all)await delT(t.codigo);toast(all.length+' ingressos apagados')});
+</script>
+</body>
+</html>
