@@ -317,7 +317,7 @@ $('gerarBtn').onclick=async()=>{
   catch(e){g.textContent='Não foi possível salvar: '+(e&&e.message||e)}
 };
 function ticketCanvas(t){
-  const W=800,H=1280,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const W=800,H=1360,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
   x.fillStyle='#14131c';x.fillRect(0,0,W,H);
   x.fillStyle='#6d4aff';x.fillRect(0,0,W,120);
   let ttl=('INGRESSO • '+(curF?curF.nome:'FESTA')).toUpperCase();x.font='bold 44px sans-serif';
@@ -326,21 +326,22 @@ function ticketCanvas(t){
   const L=(lab,val,y)=>{x.textAlign='left';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText(lab,60,y);
     x.fillStyle='#f0eff7';x.font='bold 38px sans-serif';let v=String(val),s=v;
     while(x.measureText(s).width>680&&s.length>3){s=s.slice(0,-1)}if(s!==v)s=s.trim()+'…';x.fillText(s,60,y+44)};
-  L('Nome',t.nome,190);L('CPF',t.cpf,300);L('Tipo',t.tipo,410);
+  const dtxt=curF&&curF.data?curF.data.split('-').reverse().join('/')+(curF.hora?' às '+curF.hora:''):'';
+  L('Nome',t.nome,170);L('CPF',t.cpf,260);L('Tipo',t.tipo,350);if(dtxt)L('Data e horário da festa',dtxt,440);
   const d=document.createElement('div');
   new QRCode(d,{text:t.codigo,width:480,height:480,correctLevel:QRCode.CorrectLevel.H});
   const q=d.querySelector('canvas');
-  x.fillStyle='#fff';x.fillRect(120,500,560,560);
-  x.imageSmoothingEnabled=false;x.drawImage(q,160,520,480,480);
-  x.textAlign='center';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText('Código do ingresso',W/2,1075);
-  x.fillStyle='#f0eff7';x.font='bold 60px monospace';x.fillText(t.codigo,W/2,1145);
-  x.fillStyle='#9a99ad';x.font='24px sans-serif';x.fillText('Apresente este QR code na entrada',W/2,1220);
+  x.fillStyle='#fff';x.fillRect(120,540,560,560);
+  x.imageSmoothingEnabled=false;x.drawImage(q,160,560,480,480);
+  x.textAlign='center';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText('Código do ingresso',W/2,1155);
+  x.fillStyle='#f0eff7';x.font='bold 60px monospace';x.fillText(t.codigo,W/2,1230);
+  x.fillStyle='#9a99ad';x.font='24px sans-serif';x.fillText('Apresente este QR code na entrada',W/2,1305);
   return c;
 }
 $('expPng').onclick=()=>{if(lastT)ticketCanvas(lastT).toBlob(b=>salvar('ingresso-'+lastT.codigo+'.png',b),'image/png')};
 $('expPdf').onclick=async()=>{if(!lastT)return;
   try{const c=ticketCanvas(lastT);const {jsPDF}=window.jspdf;
-    const p=new jsPDF({unit:'mm',format:[100,160]});p.addImage(c.toDataURL('image/png'),'PNG',0,0,100,160);
+    const p=new jsPDF({unit:'mm',format:[100,170]});p.addImage(c.toDataURL('image/png'),'PNG',0,0,100,170);
     await salvar('ingresso-'+lastT.codigo+'.pdf',p.output('blob'))}
   catch(e){toast('Erro ao gerar o PDF: '+(e&&e.message||e))}};
 async function validar(cod){
