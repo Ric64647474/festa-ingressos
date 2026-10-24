@@ -105,7 +105,7 @@ header .note{width:100%;font-weight:400}
 <div class="card" style="margin-top:12px">
 <input id="busca" placeholder="Buscar por nome, CPF ou código">
 <button class="btn s" id="refresh" style="margin:6px 0">Atualizar agora</button><div class="note" id="sync"></div>
-<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Tipo</th><th>Criado em</th><th>Entrada</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Tipo</th><th>Criado em</th><th>Entrada</th><th>Validado por</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
 <button class="btn s" id="csv">Exportar CSV</button>
 <button class="btn s" id="limpar" style="color:var(--er);border-color:var(--er)">Apagar tudo</button>
 </div>
@@ -311,20 +311,21 @@ async function validar(cod){
   cod=cod.trim().toUpperCase().replace(/\s/g,'').replace(/[–—_]/g,'-');
   if(/^[A-Z0-9]{6}$/.test(cod))cod='FST-'+cod;
   const r=$('res');r.className='res wa';r.textContent='Validando '+cod+'…';
+  if(curF&&curF.data&&hojeISO()<curF.data){r.className='res er';r.textContent='⛔ Entrada bloqueada: a festa é em '+curF.data.split('-').reverse().join('/')+'. Só é possível validar a partir desse dia.';return}
   try{
     if(DB&&DB.runTransaction){
       const ref=tcol().doc(cod),now=Date.now();
       const res=await DB.runTransaction(async tx=>{const s=await tx.get(ref);if(!s.exists)return{st:'nf'};const d=s.data();
-        if(d.entrada)return{st:'used',d};tx.update(ref,{entrada:now});return{st:'ok',d:{...d,entrada:now}}});
+        if(d.entrada)return{st:'used',d};tx.update(ref,{entrada:now,entradaPor:who||'organizador'});return{st:'ok',d:{...d,entrada:now,entradaPor:who||'organizador'}}});
       if(res.st==='nf'){r.className='res er';r.textContent='❌ Ingresso não encontrado nesta festa: '+cod;return}
-      if(res.st==='used'){r.className='res wa';r.textContent='⚠️ JÁ UTILIZADO — '+res.d.nome+' entrou em '+fmt(res.d.entrada);return}
+      if(res.st==='used'){r.className='res wa';r.textContent='⚠️ JÁ UTILIZADO — '+res.d.nome+' entrou em '+fmt(res.d.entrada)+(res.d.entradaPor?' (validado por '+res.d.entradaPor+')':'');return}
       const i=CACHE.findIndex(x=>x.codigo===cod);if(i>=0)CACHE[i]=res.d;if(dashOn())render();
-      r.className='res ok';r.textContent='✅ Liberado: '+res.d.nome+' ('+res.d.tipo+') — '+fmt(res.d.entrada)+' • gravado ✔';return}
+      r.className='res ok';r.textContent='✅ Liberado: '+res.d.nome+' ('+res.d.tipo+') — '+fmt(res.d.entrada)+' • validado por '+(who||'organizador')+' ✔';return}
     let t=CACHE.find(x=>String(x.codigo).toUpperCase()===cod);
     if(!t&&DB){try{const s=await tcol().doc(cod).get();const ex=typeof s.exists==='function'?s.exists():s.exists;t=ex?s.data():null}catch(e){}}
     if(!t){r.className='res er';r.textContent='❌ Ingresso não encontrado nesta festa: '+cod+' ('+CACHE.length+' ingressos carregados'+(DB?'':', modo local: só vê os gerados neste aparelho')+')';return}
     if(t.entrada){r.className='res wa';r.textContent='⚠️ JÁ UTILIZADO — '+t.nome+' entrou em '+fmt(t.entrada);return}
-    t={...t,entrada:Date.now()};await put(t);let nota=' • salvo só neste aparelho';
+    t={...t,entrada:Date.now(),entradaPor:'este aparelho'};await put(t);let nota=' • salvo só neste aparelho';
     if(DB){let dd=(await tcol().doc(t.codigo).get()).data();
       if(!(dd&&dd.entrada)){try{await tcol().doc(t.codigo).update({entrada:t.entrada});dd=(await tcol().doc(t.codigo).get()).data()}catch(e){}}
       nota=(dd&&dd.entrada)?' • gravado no banco ✔':' • ⚠️ o banco NÃO confirmou a gravação'}
@@ -378,6 +379,7 @@ function render(){
   $('rows').innerHTML=d.filter(x=>(x.nome+x.cpf+x.codigo).toLowerCase().includes(q)).sort((a,b)=>b.criado-a.criado).map(t=>
     `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td>
     <td>${t.entrada?'<span class="tag t-ok">'+fmt(t.entrada)+'</span>':'<span class="tag t-wa">Pendente</span>'}</td>
+    <td>${t.entradaPor?esc(t.entradaPor):'—'}</td>
     <td><button class="btn s" style="margin:0;padding:4px 8px" data-c="${esc(t.codigo)}">QR</button></td>
     <td><button class="btn s" style="margin:0;padding:4px 8px;color:var(--er);border-color:var(--er)" data-d="${esc(t.codigo)}">Excluir</button></td></tr>`).join('');
   document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{
@@ -393,7 +395,7 @@ $('refresh').onclick=async()=>{
   b.disabled=false;b.textContent='Atualizar agora';
 };
 $('busca').oninput=render;
-$('csv').onclick=()=>{const l=[['codigo','nome','cpf','contato','tipo','criado','entrada']].concat(CACHE.map(t=>[t.codigo,t.nome,t.cpf,t.contato,t.tipo,fmt(t.criado),fmt(t.entrada)]));
+$('csv').onclick=()=>{const l=[['codigo','nome','cpf','contato','tipo','criado','entrada','validado_por']].concat(CACHE.map(t=>[t.codigo,t.nome,t.cpf,t.contato,t.tipo,fmt(t.criado),fmt(t.entrada),t.entradaPor||'']));
   salvar('ingressos-'+((curF&&curF.nome)||'festa').replace(/[^\w-]+/g,'_')+'.csv',new Blob(['\ufeff'+l.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n')],{type:'text/csv'}))};
 $('limpar').onclick=()=>ask('Apagar TODOS os ingressos desta festa? Não dá para desfazer.',async()=>{
   const all=CACHE.slice();for(const t of all)await delT(t.codigo);toast(all.length+' ingressos apagados')});
