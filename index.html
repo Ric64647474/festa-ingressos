@@ -105,17 +105,17 @@ header .note{width:100%;font-weight:400}
 <section id="dash" class="hide">
 <div class="grid" id="kpis"></div>
 <div class="card" style="margin-top:12px">
-<input id="busca" placeholder="Buscar por nome, CPF ou código">
+<input id="busca" placeholder="Buscar por nome, CPF, contato ou código">
 <button class="btn s" id="refresh" style="margin:6px 0">Atualizar agora</button><div class="note" id="sync"></div>
-<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Tipo</th><th>Criado em</th><th>Emitido por</th><th>Entrada</th><th>Validado por</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
-<button class="btn s" id="csv">Exportar CSV</button>
+<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Contato</th><th>Tipo</th><th>Criado em</th><th>Emitido por</th><th>Entrada</th><th>Validado por</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+
 <button class="btn s" id="limpar" style="color:var(--er);border-color:var(--er)">Apagar tudo</button>
 </div>
 
 </section>
 </main>
 </div>
-<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 6)</span>
+<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 8)</span>
 <label>E-mail</label><input id="lemail" type="email" autocomplete="username">
 <label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
 <button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
@@ -144,7 +144,7 @@ function lsave(){try{localStorage.setItem(KEY,JSON.stringify(LOCAL))}catch(e){}}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),5000)}
 function ask(msg,fn){$('mtxt').textContent=msg;$('modal').classList.remove('hide');$('mok').onclick=()=>{$('modal').classList.add('hide');fn()};$('mno').onclick=()=>$('modal').classList.add('hide')}
 let who='';
-function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who:''):'🟠 Modo local (só neste aparelho)')+' • versão 6'}
+function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who:''):'🟠 Modo local (só neste aparelho)')+' • versão 8'}
 const dashOn=()=>cur&&!$('dash').classList.contains('hide');
 const tcol=()=>DB?DB.collection('festas/'+cur+'/tickets'):null;
 /* ===== CONFIGURAÇÃO DO FIREBASE: cole aqui os dados do seu projeto (veja o tutorial) ===== */
@@ -422,8 +422,8 @@ function render(){
   $('sync').textContent='Fonte: '+(DB?'banco compartilhado':'este aparelho')+' • '+d.length+' ingressos • atualizado às '+new Date().toLocaleTimeString('pt-BR');
   $('kpis').innerHTML=[['Ingressos',d.length],['Entraram',ent],['Faltam',d.length-ent],['Presença',d.length?Math.round(ent/d.length*100)+'%':'0%']]
     .map(k=>`<div class="card kpi"><b>${k[1]}</b><span>${k[0]}</span></div>`).join('');
-  $('rows').innerHTML=d.filter(x=>(x.nome+x.cpf+x.codigo).toLowerCase().includes(q)).sort((a,b)=>b.criado-a.criado).map(t=>
-    `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td><td>${t.emitidoPor?esc(t.emitidoPor):'—'}</td>
+  $('rows').innerHTML=d.filter(x=>(x.nome+x.cpf+x.codigo+(x.contato||'')).toLowerCase().includes(q)).sort((a,b)=>b.criado-a.criado).map(t=>
+    `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}</td><td>${t.contato?esc(t.contato):'—'}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td><td>${t.emitidoPor?esc(t.emitidoPor):'—'}</td>
     <td>${t.entrada?'<span class="tag t-ok">'+fmt(t.entrada)+'</span>':'<span class="tag t-wa">Pendente</span>'}</td>
     <td>${t.entradaPor?esc(t.entradaPor):'—'}</td>
     <td><button class="btn s" style="margin:0;padding:4px 8px" data-c="${esc(t.codigo)}">QR</button></td>
@@ -441,8 +441,6 @@ $('refresh').onclick=async()=>{
   b.disabled=false;b.textContent='Atualizar agora';
 };
 $('busca').oninput=render;
-$('csv').onclick=()=>{const l=[['codigo','nome','cpf','contato','tipo','criado','emitido_por','entrada','validado_por']].concat(CACHE.map(t=>[t.codigo,t.nome,t.cpf,t.contato,t.tipo,fmt(t.criado),t.emitidoPor||'',fmt(t.entrada),t.entradaPor||'']));
-  salvar('ingressos-'+((curF&&curF.nome)||'festa').replace(/[^\w-]+/g,'_')+'.csv',new Blob(['\ufeff'+l.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n')],{type:'text/csv'}))};
 $('limpar').onclick=()=>ask('Apagar TODOS os ingressos desta festa? Não dá para desfazer.',async()=>{
   const all=CACHE.slice();for(const t of all)await delT(t.codigo);toast(all.length+' ingressos apagados')});
 </script>
