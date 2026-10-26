@@ -57,7 +57,7 @@ header .note{width:100%;font-weight:400}
 <div class="card"><b id="ftit">Nova festa</b>
 <label>Nome da festa</label><input id="fnome" placeholder="Ex.: Aniversário da Ana">
 <label>Data da festa</label><input id="fdata" type="date">
-<label>Horário (opcional)</label><input id="fhora" type="time">
+<label>Horário (opcional)</label><input id="fhora" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM (ex.: 20:30)" autocomplete="off">
 <button class="btn" id="fadd">Criar festa</button> <button class="btn s hide" id="fcancel">Cancelar edição</button><div class="note" id="fmsg"></div></div>
 <div id="flist"></div>
 </section>
@@ -115,7 +115,7 @@ header .note{width:100%;font-weight:400}
 </section>
 </main>
 </div>
-<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b>
+<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 6)</span>
 <label>E-mail</label><input id="lemail" type="email" autocomplete="username">
 <label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
 <button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
@@ -144,7 +144,7 @@ function lsave(){try{localStorage.setItem(KEY,JSON.stringify(LOCAL))}catch(e){}}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),5000)}
 function ask(msg,fn){$('mtxt').textContent=msg;$('modal').classList.remove('hide');$('mok').onclick=()=>{$('modal').classList.add('hide');fn()};$('mno').onclick=()=>$('modal').classList.add('hide')}
 let who='';
-function setStatus(){$('st').textContent=DB?'🟢 Online e sincronizado'+(who?' • '+who:''):'🟠 Modo local (só neste aparelho)'}
+function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who:''):'🟠 Modo local (só neste aparelho)')+' • versão 6'}
 const dashOn=()=>cur&&!$('dash').classList.contains('hide');
 const tcol=()=>DB?DB.collection('festas/'+cur+'/tickets'):null;
 /* ===== CONFIGURAÇÃO DO FIREBASE: cole aqui os dados do seu projeto (veja o tutorial) ===== */
@@ -231,6 +231,7 @@ $('fadd').onclick=async()=>{
   if(editId){const old=FESTAS.find(x=>x.id===editId);if(!old){resetEdit();return}
     const dt=$('fdata').value,hr=$('fhora').value;
     if(!dt)return $('fmsg').textContent='Informe a data da festa.';
+    if(!horaOk(hr))return $('fmsg').textContent='Horário inválido. Digite no formato HH:MM, de 00:00 a 23:59.';
     if((dt!==old.data||hr!==(old.hora||''))&&passou(dt,hr))return $('fmsg').textContent='Essa data/horário já passou. Escolha uma data futura.';
     const f={...old,nome,data:dt,hora:hr};
     try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{const i=LOCAL.festas.findIndex(x=>x.id===f.id);LOCAL.festas[i]=f;lsave()}
@@ -239,6 +240,7 @@ $('fadd').onclick=async()=>{
     return}
   const dt=$('fdata').value,hr=$('fhora').value;
   if(!dt)return $('fmsg').textContent='Informe a data da festa.';
+  if(!horaOk(hr))return $('fmsg').textContent='Horário inválido. Digite no formato HH:MM, de 00:00 a 23:59.';
   if(passou(dt,hr))return $('fmsg').textContent='Essa data/horário já passou. Escolha uma data futura.';
   const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),nome,data:dt,hora:hr,criado:Date.now()};
   try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{LOCAL.festas.push(f);lsave()}
@@ -260,6 +262,13 @@ function goHome(){
 $('back').onclick=goHome;
 $('fcancel').onclick=resetEdit;
 setMin();
+function horaOk(v){return v===''||/^([01]\d|2[0-3]):[0-5]\d$/.test(v)}
+$('fhora').addEventListener('input',e=>{
+  let d=e.target.value.replace(/\D/g,'').slice(0,4);
+  if(d.length&&d[0]>'2')d='0'+d;
+  d=d.slice(0,4);
+  e.target.value=d.length>2?d.slice(0,2)+':'+d.slice(2):d;
+});
 function apply(list){
   const old=new Map(CACHE.map(t=>[t.codigo,t]));
   const out=list.filter(n=>!gone.has(n.codigo)).map(n=>{const o=old.get(n.codigo);return(o&&o.entrada&&!n.entrada)?o:n});
