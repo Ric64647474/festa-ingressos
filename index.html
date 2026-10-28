@@ -58,8 +58,24 @@ header .note{width:100%;font-weight:400}
 <label>Nome da festa</label><input id="fnome" placeholder="Ex.: Aniversário da Ana">
 <label>Data da festa</label><input id="fdata" type="date">
 <label>Horário (opcional)</label><input id="fhora" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM (ex.: 20:30)" autocomplete="off">
+<label>CEP (opcional)</label><input id="fcep" inputmode="numeric" maxlength="9" placeholder="00000-000" autocomplete="off"><div class="note" id="fcepmsg"></div>
+<label>Rua</label><input id="frua">
+<label>Número</label><input id="fnum" placeholder="Ex.: 123">
+<label>Complemento (opcional)</label><input id="fcompl">
+<label>Bairro</label><input id="fbairro">
+<label>Cidade</label><input id="fcidade">
+<label>UF</label><input id="fuf" maxlength="2" placeholder="SP" autocapitalize="characters">
 <button class="btn" id="fadd">Criar festa</button> <button class="btn s hide" id="fcancel">Cancelar edição</button><div class="note" id="fmsg"></div></div>
 <div id="flist"></div>
+<details class="card" id="cardBL"><summary><b>CPFs marcados (lista de bloqueio)</b> <span class="note" id="blcount"></span></summary>
+<div class="note" style="margin:6px 0">Ingressos não podem ser criados para CPFs desta lista.</div>
+<label>CPF</label><input id="blcpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+<label>Motivo</label><input id="blmot" maxlength="120">
+<button class="btn" id="bladd">Marcar CPF</button><div class="note" id="blmsg"></div>
+<div id="bllist"></div></details>
+<details class="card hide" id="cardUS"><summary><b>Usuários e níveis</b></summary>
+<div class="note" style="margin:6px 0">Proprietário: acesso total. Administrador: tudo, menos excluir festas.</div>
+<div id="uslist"></div></details>
 </section>
 <div id="appv" class="hide">
 <nav id="nav">
@@ -107,7 +123,7 @@ header .note{width:100%;font-weight:400}
 <div class="card" style="margin-top:12px">
 <input id="busca" placeholder="Buscar por nome, CPF, contato ou código">
 <button class="btn s" id="refresh" style="margin:6px 0">Atualizar agora</button><div class="note" id="sync"></div>
-<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Contato</th><th>Tipo</th><th>Criado em</th><th>Emitido por</th><th>Entrada</th><th>Validado por</th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Contato</th><th>Tipo</th><th>Criado em</th><th>Emitido por</th><th>Entrada</th><th>Validado por</th><th></th><th></th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
 
 <button class="btn s" id="limpar" style="color:var(--er);border-color:var(--er)">Apagar tudo</button>
 </div>
@@ -115,7 +131,7 @@ header .note{width:100%;font-weight:400}
 </section>
 </main>
 </div>
-<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 8)</span>
+<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 9)</span>
 <label>E-mail</label><input id="lemail" type="email" autocomplete="username">
 <label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
 <button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
@@ -124,7 +140,7 @@ header .note{width:100%;font-weight:400}
 <input id="apin" maxlength="20" placeholder="Ex.: Ana, Portaria 1">
 <button class="btn" id="apok">Salvar apelido</button> <button class="btn s" id="apsair">Sair</button>
 <div class="note" id="apmsg"></div></div></div>
-<div id="modal" class="hide"><div class="card" style="max-width:380px"><div id="mtxt" style="margin-bottom:6px"></div>
+<div id="modal" class="hide"><div class="card" style="max-width:380px"><div id="mtxt" style="margin-bottom:6px"></div><input id="minp" class="hide" style="margin-bottom:6px">
 <button class="btn" id="mok" style="background:var(--er)">Confirmar</button> <button class="btn s" id="mno">Cancelar</button></div></div>
 <div id="toast" class="hide"></div>
 <script>
@@ -139,12 +155,14 @@ let editId=null;
 function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function setMin(){$('fdata').min=editId?'':hojeISO()}
 function passou(data,hora){return new Date(data+'T'+(hora||'23:59')+':00')<new Date()}
-function resetEdit(){editId=null;$('fnome').value='';$('fdata').value='';$('fhora').value='';setMin();$('ftit').textContent='Nova festa';$('fadd').textContent='Criar festa';$('fcancel').classList.add('hide');$('fmsg').textContent=''}
+function resetEdit(){editId=null;$('fnome').value='';$('fdata').value='';$('fhora').value='';clearEnd();setMin();$('ftit').textContent='Nova festa';$('fadd').textContent='Criar festa';$('fcancel').classList.add('hide');$('fmsg').textContent=''}
 function lsave(){try{localStorage.setItem(KEY,JSON.stringify(LOCAL))}catch(e){}}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),5000)}
-function ask(msg,fn){$('mtxt').textContent=msg;$('modal').classList.remove('hide');$('mok').onclick=()=>{$('modal').classList.add('hide');fn()};$('mno').onclick=()=>$('modal').classList.add('hide')}
-let who='';
-function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who:''):'🟠 Modo local (só neste aparelho)')+' • versão 8'}
+function ask(msg,fn,inp){$('mtxt').textContent=msg;const mi=$('minp');mi.value='';mi.classList.toggle('hide',!inp);if(inp)mi.placeholder=inp;
+  $('modal').classList.remove('hide');$('mok').onclick=()=>{const v=mi.value.trim();if(inp&&!v)return;$('modal').classList.add('hide');fn(v)};$('mno').onclick=()=>$('modal').classList.add('hide')}
+let who='',me='',nivel='administrador',BL=new Map(),unsubB=null,unsubU=null;
+const isDono=()=>!DB||nivel==='proprietario';
+function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who+' ('+(isDono()?'proprietário':'administrador')+')':''):'🟠 Modo local (só neste aparelho)')+' • versão 9'}
 const dashOn=()=>cur&&!$('dash').classList.contains('hide');
 const tcol=()=>DB?DB.collection('festas/'+cur+'/tickets'):null;
 /* ===== CONFIGURAÇÃO DO FIREBASE: cole aqui os dados do seu projeto (veja o tutorial) ===== */
@@ -172,7 +190,7 @@ function pedirApelido(fs,u){return new Promise(res=>{
         const k=await tx.get(kref);const us=await tx.get(uref);
         if(us.exists)throw new Error('JA');
         if(k.exists)throw new Error('USO');
-        tx.set(kref,{uid:u.uid});tx.set(uref,{apelido:ap,email:u.email||'',criado:Date.now()});
+        tx.set(kref,{uid:u.uid});tx.set(uref,{apelido:ap,email:u.email||'',criado:Date.now(),nivel:'administrador'});
       });
       box.classList.add('hide');res(ap);
     }catch(e){
@@ -199,18 +217,22 @@ if(!window.firebase||firebaseConfig.apiKey==='COLE_AQUI'){
   firebase.initializeApp(firebaseConfig);auth=firebase.auth();
   auth.setPersistence(firebase.auth.Auth.Persistence.NONE).then(()=>auth.signOut()).catch(()=>{}).then(()=>{
   auth.onAuthStateChanged(async u=>{
-    if(unsubF){unsubF();unsubF=null}
+    if(unsubF){unsubF();unsubF=null}if(unsubB){unsubB();unsubB=null}if(unsubU){unsubU();unsubU=null}
     if(u){
-      const fs=firebase.firestore();who='';
-      try{const ud=await fs.collection('usuarios').doc(u.uid).get();who=ud.exists?ud.data().apelido:await pedirApelido(fs,u)}
+      const fs=firebase.firestore();who='';me=u.uid;nivel='administrador';
+      try{const ud=await fs.collection('usuarios').doc(u.uid).get();if(ud.exists){who=ud.data().apelido;nivel=ud.data().nivel||'administrador'}else who=await pedirApelido(fs,u)}
       catch(e){who=u.email||'';toast('Não foi possível carregar seu apelido: '+(e&&e.message||e))}
       if(!auth.currentUser)return;
       DB=fs;
       $('login').classList.add('hide');$('sair').classList.remove('hide');FESTAS=[];setStatus();renderHome();
       unsubF=DB.collection('festas').onSnapshot(s=>{FESTAS=s.docs.map(x=>x.data());renderHome()},
         e=>toast('Erro ao ler as festas: '+(e&&e.message||e)));
+      unsubB=DB.collection('blacklist').onSnapshot(s=>{BL=new Map(s.docs.map(x=>[x.id,x.data()]));renderBL();if(dashOn())render()},
+        e=>toast('Erro ao ler a lista de CPFs: '+(e&&e.message||e)));
+      if(isDono())unsubU=DB.collection('usuarios').onSnapshot(s=>renderUS(s.docs.map(x=>({id:x.id,...x.data()}))),
+        e=>toast('Erro ao ler usuários: '+(e&&e.message||e)));
     }else{
-      DB=null;who='';if(cur)goHome();FESTAS=[];
+      DB=null;who='';nivel='administrador';BL=new Map();if(cur)goHome();FESTAS=[];
       $('sair').classList.add('hide');$('login').classList.remove('hide');setStatus();renderHome();
     }
   });
@@ -218,22 +240,24 @@ if(!window.firebase||firebaseConfig.apiKey==='COLE_AQUI'){
 }
 setStatus();
 function renderHome(){
+  $('cardUS').classList.toggle('hide',!(DB&&isDono()));renderBL();
   const L=[...FESTAS].sort((a,b)=>(b.criado||0)-(a.criado||0));
-  $('flist').innerHTML=L.length?L.map(f=>`<div class="card"><b>${esc(f.nome)}</b><div class="note">${f.data?'Data: '+esc(f.data.split('-').reverse().join('/'))+(f.hora?' às '+esc(f.hora):''):'Sem data'}</div>
-    <button class="btn" data-o="${esc(f.id)}">Abrir</button> <button class="btn s" data-e="${esc(f.id)}">Editar</button> <button class="btn s" data-x="${esc(f.id)}" style="color:var(--er);border-color:var(--er)">Excluir festa</button></div>`).join(''):'<div class="note">Nenhuma festa ainda. Crie a primeira acima.</div>';
+  $('flist').innerHTML=L.length?L.map(f=>`<div class="card"><b>${esc(f.nome)}</b><div class="note">${f.data?'Data: '+esc(f.data.split('-').reverse().join('/'))+(f.hora?' às '+esc(f.hora):''):'Sem data'}</div>${enderecoTxt(f)?'<div class="note">📍 '+esc(enderecoTxt(f))+'</div>':''}
+    <button class="btn" data-o="${esc(f.id)}">Abrir</button> <button class="btn s" data-e="${esc(f.id)}">Editar</button> ${isDono()?`<button class="btn s" data-x="${esc(f.id)}" style="color:var(--er);border-color:var(--er)">Excluir festa</button>`:''}</div>`).join(''):'<div class="note">Nenhuma festa ainda. Crie a primeira acima.</div>';
   document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>openFesta(b.dataset.o));
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.e);if(!f)return;
-    editId=f.id;$('fnome').value=f.nome;$('fdata').value=f.data||'';$('fhora').value=f.hora||'';setMin();$('ftit').textContent='Editar festa';$('fadd').textContent='Salvar alterações';$('fcancel').classList.remove('hide');$('fmsg').textContent='';window.scrollTo(0,0)});
+    editId=f.id;$('fnome').value=f.nome;$('fdata').value=f.data||'';$('fhora').value=f.hora||'';fillEnd(f);setMin();$('ftit').textContent='Editar festa';$('fadd').textContent='Salvar alterações';$('fcancel').classList.remove('hide');$('fmsg').textContent='';window.scrollTo(0,0)});
   document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.x);if(f)ask('Excluir a festa "'+f.nome+'" e todos os seus ingressos? Não dá para desfazer.',()=>delFesta(f))});
 }
 $('fadd').onclick=async()=>{
   const nome=$('fnome').value.trim();if(!nome)return $('fmsg').textContent='Informe o nome da festa.';
+  {const ev=validaEnd();if(ev)return $('fmsg').textContent=ev}
   if(editId){const old=FESTAS.find(x=>x.id===editId);if(!old){resetEdit();return}
     const dt=$('fdata').value,hr=$('fhora').value;
     if(!dt)return $('fmsg').textContent='Informe a data da festa.';
     if(!horaOk(hr))return $('fmsg').textContent='Horário inválido. Digite no formato HH:MM, de 00:00 a 23:59.';
     if((dt!==old.data||hr!==(old.hora||''))&&passou(dt,hr))return $('fmsg').textContent='Essa data/horário já passou. Escolha uma data futura.';
-    const f={...old,nome,data:dt,hora:hr};
+    const f={...old,nome,data:dt,hora:hr,...readEnd()};
     try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{const i=LOCAL.festas.findIndex(x=>x.id===f.id);LOCAL.festas[i]=f;lsave()}
       resetEdit();renderHome();toast('Festa atualizada')}
     catch(e){$('fmsg').textContent='Erro ao salvar: '+(e&&e.message||e)}
@@ -242,9 +266,9 @@ $('fadd').onclick=async()=>{
   if(!dt)return $('fmsg').textContent='Informe a data da festa.';
   if(!horaOk(hr))return $('fmsg').textContent='Horário inválido. Digite no formato HH:MM, de 00:00 a 23:59.';
   if(passou(dt,hr))return $('fmsg').textContent='Essa data/horário já passou. Escolha uma data futura.';
-  const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),nome,data:dt,hora:hr,criado:Date.now()};
+  const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),nome,data:dt,hora:hr,criado:Date.now(),...readEnd()};
   try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{LOCAL.festas.push(f);lsave()}
-    $('fmsg').textContent='';$('fnome').value='';$('fdata').value='';$('fhora').value='';openFesta(f.id,f)}
+    $('fmsg').textContent='';$('fnome').value='';$('fdata').value='';$('fhora').value='';clearEnd();openFesta(f.id,f)}
   catch(e){$('fmsg').textContent='Erro ao criar: '+(e&&e.message||e)}
 };
 function openFesta(id,f){
@@ -289,8 +313,9 @@ async function delT(c){
   if(dashOn())render();
 }
 async function delFesta(f){
+  if(!isDono())return toast('Só o proprietário pode excluir festas.');
   try{
-    if(DB){const col=DB.collection('festas/'+f.id+'/tickets');const s=await col.get();for(const d of s.docs)await col.doc(d.id).delete();await DB.collection('festas').doc(f.id).delete()}
+    if(DB){await DB.collection('festas').doc(f.id).delete();const col=DB.collection('festas/'+f.id+'/tickets');const s=await col.get();for(const d of s.docs)await col.doc(d.id).delete()}
     else{LOCAL.festas=LOCAL.festas.filter(x=>x.id!==f.id);delete LOCAL.t[f.id];FESTAS=LOCAL.festas;lsave();renderHome()}
     toast('Festa excluída')
   }catch(e){toast('Erro ao excluir a festa: '+(e&&e.message||e))}
@@ -309,6 +334,58 @@ function validCPF(c){c=c.replace(/\D/g,'');if(c.length!==11||/^(\d)\1+$/.test(c)
 $('cpf').oninput=e=>{let v=e.target.value.replace(/\D/g,'').slice(0,11);
   v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');e.target.value=v};
 function code(){const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)];return 'FST-'+s}
+const cpfN=c=>String(c||'').replace(/\D/g,'');
+function readEnd(){return{cep:$('fcep').value.trim(),rua:$('frua').value.trim(),numero:$('fnum').value.trim(),complemento:$('fcompl').value.trim(),bairro:$('fbairro').value.trim(),cidade:$('fcidade').value.trim(),uf:$('fuf').value.trim().toUpperCase()}}
+function fillEnd(f){$('fcep').value=f.cep||'';$('frua').value=f.rua||'';$('fnum').value=f.numero||'';$('fcompl').value=f.complemento||'';$('fbairro').value=f.bairro||'';$('fcidade').value=f.cidade||'';$('fuf').value=f.uf||'';$('fcepmsg').textContent=''}
+function clearEnd(){fillEnd({})}
+function validaEnd(){const e=readEnd();
+  if(e.cep&&e.cep.replace(/\D/g,'').length!==8)return 'CEP inválido. Digite os 8 números ou deixe em branco.';
+  if(e.uf&&!/^[A-Z]{2}$/.test(e.uf))return 'UF inválida. Use 2 letras (ex.: SP).';return ''}
+function enderecoTxt(f){const p=[];
+  if(f.rua)p.push(f.rua+(f.numero?', '+f.numero:''));else if(f.numero)p.push('nº '+f.numero);
+  if(f.complemento)p.push(f.complemento);if(f.bairro)p.push(f.bairro);
+  if(f.cidade)p.push(f.cidade+(f.uf?'/'+f.uf:''));else if(f.uf)p.push(f.uf);
+  if(f.cep)p.push('CEP '+f.cep);return p.join(', ')}
+$('fcep').addEventListener('input',async e=>{
+  const d=e.target.value.replace(/\D/g,'').slice(0,8);e.target.value=d.length>5?d.slice(0,5)+'-'+d.slice(5):d;
+  if(d.length!==8){$('fcepmsg').textContent='';return}
+  $('fcepmsg').textContent='Buscando endereço…';
+  try{const r=await fetch('https://viacep.com.br/ws/'+d+'/json/');const j=await r.json();
+    if(j.erro){$('fcepmsg').textContent='CEP não encontrado. Preencha o endereço manualmente.';return}
+    if(j.logradouro)$('frua').value=j.logradouro;
+    if(j.bairro)$('fbairro').value=j.bairro;
+    if(j.localidade)$('fcidade').value=j.localidade;
+    if(j.uf)$('fuf').value=j.uf;
+    $('fcepmsg').textContent='Endereço preenchido. Confira e informe o número.';$('fnum').focus()}
+  catch(err){$('fcepmsg').textContent='Não foi possível consultar o CEP agora. Preencha manualmente.'}
+});
+async function marcarCPF(cpf,nome,motivo){
+  if(!DB){toast('A lista de bloqueio só funciona online.');return}
+  try{await DB.collection('blacklist').doc(cpfN(cpf)).set({cpf,nome:nome||'',motivo,por:who||'organizador',em:Date.now()});toast('CPF marcado')}
+  catch(e){toast('Não foi possível marcar: '+(e&&e.message||e))}
+}
+function renderBL(){
+  const L=[...BL.entries()].sort((a,b)=>(b[1].em||0)-(a[1].em||0));
+  $('blcount').textContent='('+L.length+')';
+  $('bllist').innerHTML=L.length?L.map(([id,d])=>`<div class="card" style="margin:8px 0"><b>${esc(d.cpf||id)}</b>${d.nome?' • '+esc(d.nome):''}<div class="note">Motivo: ${esc(d.motivo||'—')}<br>Marcado por ${esc(d.por||'—')} em ${fmt(d.em)}</div>${isDono()?`<button class="btn s" data-r="${esc(id)}" style="color:var(--er);border-color:var(--er)">Remover da lista</button>`:''}</div>`).join(''):'<div class="note">Nenhum CPF marcado.</div>';
+  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>ask('Remover este CPF da lista de bloqueio?',async()=>{
+    try{await DB.collection('blacklist').doc(b.dataset.r).delete();toast('CPF removido da lista')}catch(e){toast('Erro: '+(e&&e.message||e))}}));
+}
+$('blcpf').oninput=$('cpf').oninput;
+$('bladd').onclick=()=>{
+  const cpf=$('blcpf').value.trim(),mot=$('blmot').value.trim(),m=$('blmsg');
+  if(!validCPF(cpf))return m.textContent='CPF inválido.';
+  if(!mot)return m.textContent='Informe o motivo.';
+  if(BL.has(cpfN(cpf)))return m.textContent='Este CPF já está na lista.';
+  m.textContent='';marcarCPF(cpf,'',mot).then(()=>{$('blcpf').value='';$('blmot').value=''});
+};
+function renderUS(us){
+  us.sort((a,b)=>String(a.apelido||'').localeCompare(String(b.apelido||'')));
+  $('uslist').innerHTML=us.map(u=>{const n=u.nivel||'administrador',eu=u.id===me,novo=n==='proprietario'?'administrador':'proprietario';
+    return `<div class="card" style="margin:8px 0"><b>${esc(u.apelido||'—')}</b> <span class="note">${esc(u.email||'')}</span><div class="note">Nível: ${n==='proprietario'?'proprietário':'administrador'}${eu?' (você)':''}</div>${eu?'':`<button class="btn s" data-u="${esc(u.id)}" data-n="${novo}" data-a="${esc(u.apelido||'')}">${novo==='proprietario'?'Tornar proprietário':'Tornar administrador'}</button>`}</div>`}).join('');
+  document.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>ask('Mudar o nível de '+b.dataset.a+' para '+(b.dataset.n==='proprietario'?'proprietário':'administrador')+'?',async()=>{
+    try{await DB.collection('usuarios').doc(b.dataset.u).update({nivel:b.dataset.n});toast('Nível atualizado')}catch(e){toast('Erro: '+(e&&e.message||e))}}));
+}
 let lastT=null;
 function showTicket(t){
   $('tk').classList.remove('hide');$('tnome').textContent=t.nome;
@@ -320,13 +397,24 @@ $('gerarBtn').onclick=async()=>{
   if(!nome)return g.textContent='Informe o nome.';
   if(!validCPF(cpf))return g.textContent='CPF inválido.';
   if(CACHE.some(x=>x.cpf===cpf))return g.textContent='Já existe ingresso para este CPF nesta festa.';
+  const cn=cpfN(cpf);
+  if(BL.has(cn))return g.textContent='🚫 Este CPF está na lista de bloqueio. Ingresso não criado. Fale com o proprietário.';
   let c;do{c=code()}while(CACHE.some(x=>x.codigo===c));
-  const t={codigo:c,nome,cpf,contato:$('contato').value.trim(),tipo:$('tipo').value.trim()||'Normal',criado:Date.now(),emitidoPor:who||'este aparelho',entrada:null};
+  const t={codigo:c,nome,cpf,cpfNum:cn,contato:$('contato').value.trim(),tipo:$('tipo').value.trim()||'Normal',criado:Date.now(),emitidoPor:who||'este aparelho',entrada:null};
   try{await put(t);g.textContent='Ingresso gerado!';showTicket(t);['nome','cpf','contato'].forEach(i=>$(i).value='')}
   catch(e){g.textContent='Não foi possível salvar: '+(e&&e.message||e)}
 };
 function ticketCanvas(t){
-  const W=800,H=1360,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const W=800,tmp=document.createElement('canvas').getContext('2d');
+  const dtxt=curF&&curF.data?curF.data.split('-').reverse().join('/')+(curF.hora?' às '+curF.hora:''):'';
+  const etxt=curF?enderecoTxt(curF):'';
+  tmp.font='bold 30px sans-serif';
+  let el=[];
+  if(etxt){let ln='';for(const w of etxt.split(' ')){const tr=ln?ln+' '+w:w;if(tmp.measureText(tr).width>680&&ln){el.push(ln);ln=w}else ln=tr}if(ln)el.push(ln)}
+  if(el.length>4){el=el.slice(0,4);el[3]=el[3]+'…'}
+  let yy=440;if(dtxt)yy+=90;if(el.length)yy+=44+(el.length-1)*40+46;
+  const top=yy+10,H=top+820;
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
   x.fillStyle='#14131c';x.fillRect(0,0,W,H);
   x.fillStyle='#6d4aff';x.fillRect(0,0,W,120);
   let ttl=('INGRESSO • '+(curF?curF.nome:'FESTA')).toUpperCase();x.font='bold 44px sans-serif';
@@ -335,22 +423,25 @@ function ticketCanvas(t){
   const L=(lab,val,y)=>{x.textAlign='left';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText(lab,60,y);
     x.fillStyle='#f0eff7';x.font='bold 38px sans-serif';let v=String(val),s=v;
     while(x.measureText(s).width>680&&s.length>3){s=s.slice(0,-1)}if(s!==v)s=s.trim()+'…';x.fillText(s,60,y+44)};
-  const dtxt=curF&&curF.data?curF.data.split('-').reverse().join('/')+(curF.hora?' às '+curF.hora:''):'';
-  L('Nome',t.nome,170);L('CPF',t.cpf,260);L('Tipo',t.tipo,350);if(dtxt)L('Data e horário da festa',dtxt,440);
+  L('Nome',t.nome,170);L('CPF',t.cpf,260);L('Tipo',t.tipo,350);
+  let y=440;
+  if(dtxt){L('Data e horário da festa',dtxt,y);y+=90}
+  if(el.length){x.textAlign='left';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText('Local',60,y);
+    x.fillStyle='#f0eff7';x.font='bold 30px sans-serif';el.forEach((ln,i)=>x.fillText(ln,60,y+44+i*40));y+=44+(el.length-1)*40+46}
   const d=document.createElement('div');
   new QRCode(d,{text:t.codigo,width:480,height:480,correctLevel:QRCode.CorrectLevel.H});
   const q=d.querySelector('canvas');
-  x.fillStyle='#fff';x.fillRect(120,540,560,560);
-  x.imageSmoothingEnabled=false;x.drawImage(q,160,560,480,480);
-  x.textAlign='center';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText('Código do ingresso',W/2,1155);
-  x.fillStyle='#f0eff7';x.font='bold 60px monospace';x.fillText(t.codigo,W/2,1230);
-  x.fillStyle='#9a99ad';x.font='24px sans-serif';x.fillText('Apresente este QR code na entrada',W/2,1305);
+  x.fillStyle='#fff';x.fillRect(120,top,560,560);
+  x.imageSmoothingEnabled=false;x.drawImage(q,160,top+20,480,480);
+  x.textAlign='center';x.fillStyle='#9a99ad';x.font='26px sans-serif';x.fillText('Código do ingresso',W/2,top+615);
+  x.fillStyle='#f0eff7';x.font='bold 60px monospace';x.fillText(t.codigo,W/2,top+690);
+  x.fillStyle='#9a99ad';x.font='24px sans-serif';x.fillText('Apresente este QR code na entrada',W/2,top+765);
   return c;
 }
 $('expPng').onclick=()=>{if(lastT)ticketCanvas(lastT).toBlob(b=>salvar('ingresso-'+lastT.codigo+'.png',b),'image/png')};
 $('expPdf').onclick=async()=>{if(!lastT)return;
   try{const c=ticketCanvas(lastT);const {jsPDF}=window.jspdf;
-    const p=new jsPDF({unit:'mm',format:[100,170]});p.addImage(c.toDataURL('image/png'),'PNG',0,0,100,170);
+    const p=new jsPDF({unit:'mm',format:[100,c.height/8]});p.addImage(c.toDataURL('image/png'),'PNG',0,0,100,c.height/8);
     await salvar('ingresso-'+lastT.codigo+'.pdf',p.output('blob'))}
   catch(e){toast('Erro ao gerar o PDF: '+(e&&e.message||e))}};
 async function validar(cod){
@@ -423,15 +514,17 @@ function render(){
   $('kpis').innerHTML=[['Ingressos',d.length],['Entraram',ent],['Faltam',d.length-ent],['Presença',d.length?Math.round(ent/d.length*100)+'%':'0%']]
     .map(k=>`<div class="card kpi"><b>${k[1]}</b><span>${k[0]}</span></div>`).join('');
   $('rows').innerHTML=d.filter(x=>(x.nome+x.cpf+x.codigo+(x.contato||'')).toLowerCase().includes(q)).sort((a,b)=>b.criado-a.criado).map(t=>
-    `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}</td><td>${t.contato?esc(t.contato):'—'}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td><td>${t.emitidoPor?esc(t.emitidoPor):'—'}</td>
+    `<tr><td>${esc(t.codigo)}</td><td>${esc(t.nome)}</td><td>${esc(t.cpf)}${BL.has(cpfN(t.cpf))?' <span class="tag" style="background:var(--er)">🚫 marcado</span>':''}</td><td>${t.contato?esc(t.contato):'—'}</td><td>${esc(t.tipo)}</td><td>${fmt(t.criado)}</td><td>${t.emitidoPor?esc(t.emitidoPor):'—'}</td>
     <td>${t.entrada?'<span class="tag t-ok">'+fmt(t.entrada)+'</span>':'<span class="tag t-wa">Pendente</span>'}</td>
     <td>${t.entradaPor?esc(t.entradaPor):'—'}</td>
+    <td>${BL.has(cpfN(t.cpf))?'':'<button class="btn s" style="margin:0;padding:4px 8px" data-m="'+esc(t.codigo)+'">Marcar CPF</button>'}</td>
     <td><button class="btn s" style="margin:0;padding:4px 8px" data-c="${esc(t.codigo)}">QR</button></td>
     <td><button class="btn s" style="margin:0;padding:4px 8px;color:var(--er);border-color:var(--er)" data-d="${esc(t.codigo)}">Excluir</button></td></tr>`).join('');
   document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{
     const t=CACHE.find(x=>x.codigo===b.dataset.c);if(!t)return;document.querySelector('[data-t=gerar]').click();showTicket(t);window.scrollTo(0,0)});
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{
     const t=CACHE.find(x=>x.codigo===b.dataset.d);if(t)ask('Excluir o ingresso '+t.codigo+' de '+t.nome+'? Não dá para desfazer.',()=>delT(t.codigo))});
+  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const t=CACHE.find(x=>x.codigo===b.dataset.m);if(t)ask('Marcar o CPF '+t.cpf+' ('+t.nome+') na lista de bloqueio? Informe o motivo:',v=>marcarCPF(t.cpf,t.nome,v),'Motivo')});
 }
 $('refresh').onclick=async()=>{
   const b=$('refresh');b.disabled=true;b.textContent='Atualizando…';
