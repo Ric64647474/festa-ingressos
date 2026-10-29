@@ -54,7 +54,8 @@ header .note{width:100%;font-weight:400}
 <body>
 <header><span>🎉</span><b id="ttl">Minhas festas</b><button class="btn s hide" id="back" style="margin:0;padding:4px 10px">← Festas</button><button class="btn s hide" id="sair" style="margin:0;padding:4px 10px">Sair</button><div class="note" id="st"></div></header>
 <section id="home">
-<div class="card"><b id="ftit">Nova festa</b>
+<button class="btn" id="fnovo" style="margin:0 0 12px">+ Nova festa</button>
+<div class="card hide" id="fform"><b id="ftit">Nova festa</b>
 <label>Nome da festa</label><input id="fnome" placeholder="Ex.: Aniversário da Ana">
 <label>Data da festa</label><input id="fdata" type="date">
 <label>Horário (opcional)</label><input id="fhora" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM (ex.: 20:30)" autocomplete="off">
@@ -65,7 +66,7 @@ header .note{width:100%;font-weight:400}
 <label>Bairro</label><input id="fbairro">
 <label>Cidade</label><input id="fcidade">
 <label>UF</label><input id="fuf" maxlength="2" placeholder="SP" autocapitalize="characters">
-<button class="btn" id="fadd">Criar festa</button> <button class="btn s hide" id="fcancel">Cancelar edição</button><div class="note" id="fmsg"></div></div>
+<button class="btn" id="fadd">Criar festa</button> <button class="btn s" id="fcancel">Cancelar</button><div class="note" id="fmsg"></div></div>
 <div id="flist"></div>
 <details class="card" id="cardBL"><summary><b>CPFs marcados (lista de bloqueio)</b> <span class="note" id="blcount"></span></summary>
 <div class="note" style="margin:6px 0">Ingressos não podem ser criados para CPFs desta lista.</div>
@@ -131,7 +132,7 @@ header .note{width:100%;font-weight:400}
 </section>
 </main>
 </div>
-<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 10)</span>
+<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 11)</span>
 <label>E-mail</label><input id="lemail" type="email" autocomplete="username">
 <label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
 <button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
@@ -152,17 +153,19 @@ function lget(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');return
 let LOCAL=lget(),FESTAS=LOCAL.festas,DB=null,dl=null,CACHE=[],cur=null,curF=null,unsubT=null;
 const pend=new Set(),gone=new Set();
 let editId=null;
+function showForm(){$('fform').classList.remove('hide');$('fnovo').classList.add('hide')}
+function hideForm(){$('fform').classList.add('hide');$('fnovo').classList.remove('hide')}
 function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function setMin(){$('fdata').min=editId?'':hojeISO()}
 function passou(data,hora){return new Date(data+'T'+(hora||'23:59')+':00')<new Date()}
-function resetEdit(){editId=null;$('fnome').value='';$('fdata').value='';$('fhora').value='';clearEnd();setMin();$('ftit').textContent='Nova festa';$('fadd').textContent='Criar festa';$('fcancel').classList.add('hide');$('fmsg').textContent=''}
+function resetEdit(){editId=null;$('fnome').value='';$('fdata').value='';$('fhora').value='';clearEnd();setMin();$('ftit').textContent='Nova festa';$('fadd').textContent='Criar festa';$('fmsg').textContent='';hideForm()}
 function lsave(){try{localStorage.setItem(KEY,JSON.stringify(LOCAL))}catch(e){}}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),5000)}
 function ask(msg,fn,inp){$('mtxt').textContent=msg;const mi=$('minp');mi.value='';mi.classList.toggle('hide',!inp);if(inp)mi.placeholder=inp;
   $('modal').classList.remove('hide');$('mok').onclick=()=>{const v=mi.value.trim();if(inp&&!v)return;$('modal').classList.add('hide');fn(v)};$('mno').onclick=()=>$('modal').classList.add('hide')}
 let who='',me='',nivel='administrador',BL=new Map(),unsubB=null,unsubU=null;
 const isDono=()=>!DB||nivel==='proprietario';
-function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who+' ('+(isDono()?'proprietário':'administrador')+')':''):'🟠 Modo local (só neste aparelho)')+' • versão 10'}
+function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who+' ('+(isDono()?'proprietário':'administrador')+')':''):'🟠 Modo local (só neste aparelho)')+' • versão 11'}
 const dashOn=()=>cur&&!$('dash').classList.contains('hide');
 const tcol=()=>DB?DB.collection('festas/'+cur+'/tickets'):null;
 /* ===== CONFIGURAÇÃO DO FIREBASE: cole aqui os dados do seu projeto (veja o tutorial) ===== */
@@ -246,7 +249,7 @@ function renderHome(){
     <button class="btn" data-o="${esc(f.id)}">Abrir</button> <button class="btn s" data-e="${esc(f.id)}">Editar</button> ${isDono()?`<button class="btn s" data-x="${esc(f.id)}" style="color:var(--er);border-color:var(--er)">Excluir festa</button>`:''}</div>`).join(''):'<div class="note">Nenhuma festa ainda. Crie a primeira acima.</div>';
   document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>openFesta(b.dataset.o));
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.e);if(!f)return;
-    editId=f.id;$('fnome').value=f.nome;$('fdata').value=f.data||'';$('fhora').value=f.hora||'';fillEnd(f);setMin();$('ftit').textContent='Editar festa';$('fadd').textContent='Salvar alterações';$('fcancel').classList.remove('hide');$('fmsg').textContent='';window.scrollTo(0,0)});
+    editId=f.id;$('fnome').value=f.nome;$('fdata').value=f.data||'';$('fhora').value=f.hora||'';fillEnd(f);setMin();$('ftit').textContent='Editar festa';$('fadd').textContent='Salvar alterações';$('fcancel').classList.remove('hide');$('fmsg').textContent='';showForm();window.scrollTo(0,0)});
   document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{const f=FESTAS.find(x=>x.id===b.dataset.x);if(f)ask('Excluir a festa "'+f.nome+'" e todos os seus ingressos? Não dá para desfazer.',()=>delFesta(f))});
 }
 $('fadd').onclick=async()=>{
@@ -268,7 +271,7 @@ $('fadd').onclick=async()=>{
   if(passou(dt,hr))return $('fmsg').textContent='Essa data/horário já passou. Escolha uma data futura.';
   const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),nome,data:dt,hora:hr,criado:Date.now(),...readEnd()};
   try{if(DB)await DB.collection('festas').doc(f.id).set(f);else{LOCAL.festas.push(f);lsave()}
-    $('fmsg').textContent='';$('fnome').value='';$('fdata').value='';$('fhora').value='';clearEnd();openFesta(f.id,f)}
+    $('fmsg').textContent='';$('fnome').value='';$('fdata').value='';$('fhora').value='';clearEnd();hideForm();openFesta(f.id,f)}
   catch(e){$('fmsg').textContent='Erro ao criar: '+(e&&e.message||e)}
 };
 function openFesta(id,f){
@@ -285,6 +288,7 @@ function goHome(){
 }
 $('back').onclick=goHome;
 $('fcancel').onclick=resetEdit;
+$('fnovo').onclick=()=>{resetEdit();showForm();window.scrollTo(0,0)};
 setMin();
 function horaOk(v){return v===''||/^([01]\d|2[0-3]):[0-5]\d$/.test(v)}
 $('fhora').addEventListener('input',e=>{
