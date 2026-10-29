@@ -131,7 +131,7 @@ header .note{width:100%;font-weight:400}
 </section>
 </main>
 </div>
-<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 9)</span>
+<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 10)</span>
 <label>E-mail</label><input id="lemail" type="email" autocomplete="username">
 <label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
 <button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
@@ -162,7 +162,7 @@ function ask(msg,fn,inp){$('mtxt').textContent=msg;const mi=$('minp');mi.value='
   $('modal').classList.remove('hide');$('mok').onclick=()=>{const v=mi.value.trim();if(inp&&!v)return;$('modal').classList.add('hide');fn(v)};$('mno').onclick=()=>$('modal').classList.add('hide')}
 let who='',me='',nivel='administrador',BL=new Map(),unsubB=null,unsubU=null;
 const isDono=()=>!DB||nivel==='proprietario';
-function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who+' ('+(isDono()?'proprietário':'administrador')+')':''):'🟠 Modo local (só neste aparelho)')+' • versão 9'}
+function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who+' ('+(isDono()?'proprietário':'administrador')+')':''):'🟠 Modo local (só neste aparelho)')+' • versão 10'}
 const dashOn=()=>cur&&!$('dash').classList.contains('hide');
 const tcol=()=>DB?DB.collection('festas/'+cur+'/tickets'):null;
 /* ===== CONFIGURAÇÃO DO FIREBASE: cole aqui os dados do seu projeto (veja o tutorial) ===== */
@@ -341,11 +341,11 @@ function clearEnd(){fillEnd({})}
 function validaEnd(){const e=readEnd();
   if(e.cep&&e.cep.replace(/\D/g,'').length!==8)return 'CEP inválido. Digite os 8 números ou deixe em branco.';
   if(e.uf&&!/^[A-Z]{2}$/.test(e.uf))return 'UF inválida. Use 2 letras (ex.: SP).';return ''}
-function enderecoTxt(f){const p=[];
+function enderecoTxt(f,semCep){const p=[];
   if(f.rua)p.push(f.rua+(f.numero?', '+f.numero:''));else if(f.numero)p.push('nº '+f.numero);
   if(f.complemento)p.push(f.complemento);if(f.bairro)p.push(f.bairro);
   if(f.cidade)p.push(f.cidade+(f.uf?'/'+f.uf:''));else if(f.uf)p.push(f.uf);
-  if(f.cep)p.push('CEP '+f.cep);return p.join(', ')}
+  if(f.cep&&!semCep)p.push('CEP '+f.cep);return p.join(', ')}
 $('fcep').addEventListener('input',async e=>{
   const d=e.target.value.replace(/\D/g,'').slice(0,8);e.target.value=d.length>5?d.slice(0,5)+'-'+d.slice(5):d;
   if(d.length!==8){$('fcepmsg').textContent='';return}
@@ -407,7 +407,7 @@ $('gerarBtn').onclick=async()=>{
 function ticketCanvas(t){
   const W=800,tmp=document.createElement('canvas').getContext('2d');
   const dtxt=curF&&curF.data?curF.data.split('-').reverse().join('/')+(curF.hora?' às '+curF.hora:''):'';
-  const etxt=curF?enderecoTxt(curF):'';
+  const etxt=curF?enderecoTxt(curF,true):'';
   tmp.font='bold 30px sans-serif';
   let el=[];
   if(etxt){let ln='';for(const w of etxt.split(' ')){const tr=ln?ln+' '+w:w;if(tmp.measureText(tr).width>680&&ln){el.push(ln);ln=w}else ln=tr}if(ln)el.push(ln)}
