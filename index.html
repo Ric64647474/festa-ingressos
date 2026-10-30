@@ -71,6 +71,8 @@ header .note{width:100%;font-weight:400}
 <details class="card" id="cardBL"><summary><b>CPFs marcados (lista de bloqueio)</b> <span class="note" id="blcount"></span></summary>
 <div class="note" style="margin:6px 0">Ingressos não podem ser criados para CPFs desta lista.</div>
 <label>CPF</label><input id="blcpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+<label>Nome (opcional)</label><input id="blnome" maxlength="80">
+<label>Contato: e-mail ou telefone (opcional)</label><input id="blcont" maxlength="80">
 <label>Motivo</label><input id="blmot" maxlength="120">
 <button class="btn" id="bladd">Marcar CPF</button><div class="note" id="blmsg"></div>
 <div id="bllist"></div></details>
@@ -132,7 +134,7 @@ header .note{width:100%;font-weight:400}
 </section>
 </main>
 </div>
-<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 11)</span>
+<div id="login"><div class="card" style="width:100%;max-width:360px"><b>🎉 Acesso dos organizadores</b> <span class="note">(versão 12)</span>
 <label>E-mail</label><input id="lemail" type="email" autocomplete="username">
 <label>Senha</label><input id="lsenha" type="password" autocomplete="current-password">
 <button class="btn" id="lbtn">Entrar</button><div class="note" id="lmsg"></div></div></div>
@@ -165,7 +167,7 @@ function ask(msg,fn,inp){$('mtxt').textContent=msg;const mi=$('minp');mi.value='
   $('modal').classList.remove('hide');$('mok').onclick=()=>{const v=mi.value.trim();if(inp&&!v)return;$('modal').classList.add('hide');fn(v)};$('mno').onclick=()=>$('modal').classList.add('hide')}
 let who='',me='',nivel='administrador',BL=new Map(),unsubB=null,unsubU=null;
 const isDono=()=>!DB||nivel==='proprietario';
-function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who+' ('+(isDono()?'proprietário':'administrador')+')':''):'🟠 Modo local (só neste aparelho)')+' • versão 11'}
+function setStatus(){$('st').textContent=(DB?'🟢 Online e sincronizado'+(who?' • '+who+' ('+(isDono()?'proprietário':'administrador')+')':''):'🟠 Modo local (só neste aparelho)')+' • versão 12'}
 const dashOn=()=>cur&&!$('dash').classList.contains('hide');
 const tcol=()=>DB?DB.collection('festas/'+cur+'/tickets'):null;
 /* ===== CONFIGURAÇÃO DO FIREBASE: cole aqui os dados do seu projeto (veja o tutorial) ===== */
@@ -363,15 +365,29 @@ $('fcep').addEventListener('input',async e=>{
     $('fcepmsg').textContent='Endereço preenchido. Confira e informe o número.';$('fnum').focus()}
   catch(err){$('fcepmsg').textContent='Não foi possível consultar o CEP agora. Preencha manualmente.'}
 });
-async function marcarCPF(cpf,nome,motivo){
+async function marcarCPF(cpf,nome,motivo,t,contato){
   if(!DB){toast('A lista de bloqueio só funciona online.');return}
-  try{await DB.collection('blacklist').doc(cpfN(cpf)).set({cpf,nome:nome||'',motivo,por:who||'organizador',em:Date.now()});toast('CPF marcado')}
+  const doc={cpf,nome:nome||'',contato:(t?t.contato:contato)||'',motivo,por:who||'organizador',em:Date.now()};
+  if(t)doc.ingresso={codigo:t.codigo||'',tipo:t.tipo||'',criado:t.criado||null,emitidoPor:t.emitidoPor||'',entrada:t.entrada||null,entradaPor:t.entradaPor||''};
+  if(t&&curF)doc.festa={id:curF.id||'',nome:curF.nome||'',data:curF.data||'',hora:curF.hora||'',cep:curF.cep||'',rua:curF.rua||'',numero:curF.numero||'',complemento:curF.complemento||'',bairro:curF.bairro||'',cidade:curF.cidade||'',uf:curF.uf||''};
+  try{await DB.collection('blacklist').doc(cpfN(cpf)).set(doc);toast('CPF marcado')}
   catch(e){toast('Não foi possível marcar: '+(e&&e.message||e))}
 }
+const dtOpen=new Set();
 function renderBL(){
   const L=[...BL.entries()].sort((a,b)=>(b[1].em||0)-(a[1].em||0));
   $('blcount').textContent='('+L.length+')';
-  $('bllist').innerHTML=L.length?L.map(([id,d])=>`<div class="card" style="margin:8px 0"><b>${esc(d.cpf||id)}</b>${d.nome?' • '+esc(d.nome):''}<div class="note">Motivo: ${esc(d.motivo||'—')}<br>Marcado por ${esc(d.por||'—')} em ${fmt(d.em)}</div>${isDono()?`<button class="btn s" data-r="${esc(id)}" style="color:var(--er);border-color:var(--er)">Remover da lista</button>`:''}</div>`).join(''):'<div class="note">Nenhum CPF marcado.</div>';
+  $('bllist').innerHTML=L.length?L.map(([id,d])=>{
+    const f=d.festa,ig=d.ingresso,aberto=dtOpen.has(id);
+    const det=`<div class="note" style="margin-top:8px"><b>Convidado</b><br>Nome: ${esc(d.nome||'—')}<br>CPF: ${esc(d.cpf||id)}<br>Contato: ${esc(d.contato||'—')}${ig?`<br>Tipo de ingresso: ${esc(ig.tipo||'—')}<br>Código do ingresso: ${esc(ig.codigo||'—')}<br>Emitido por: ${esc(ig.emitidoPor||'—')} em ${fmt(ig.criado)}<br>Entrada: ${ig.entrada?fmt(ig.entrada)+' (validado por '+esc(ig.entradaPor||'—')+')':'não validada'}`:''}</div>
+<div class="note" style="margin-top:8px"><b>Festa onde foi marcado</b><br>${f?`Nome: ${esc(f.nome||'—')}<br>Data: ${f.data?esc(f.data.split('-').reverse().join('/'))+(f.hora?' às '+esc(f.hora):''):'—'}<br>Endereço: ${esc(enderecoTxt(f)||'—')}`:'Sem festa vinculada (marcação manual ou feita antes desta atualização).'}</div>
+<div class="note" style="margin-top:8px"><b>Marcação</b><br>Motivo: ${esc(d.motivo||'—')}<br>Marcado por ${esc(d.por||'—')} em ${fmt(d.em)}</div>`;
+    return `<div class="card" style="margin:8px 0"><b>${esc(d.cpf||id)}</b> • ${esc(d.nome||'sem nome')}<div class="note">Contato: ${esc(d.contato||'—')}</div>
+<button class="btn s" data-dt="${esc(id)}">${aberto?'Ocultar detalhes':'Mostrar detalhes'}</button>
+<div class="${aberto?'':'hide'}" id="dt-${esc(id)}">${det}</div>${isDono()?`<button class="btn s" data-r="${esc(id)}" style="color:var(--er);border-color:var(--er)">Remover da lista</button>`:''}</div>`}).join(''):'<div class="note">Nenhum CPF marcado.</div>';
+  document.querySelectorAll('[data-dt]').forEach(b=>b.onclick=()=>{const id=b.dataset.dt,el=$('dt-'+id);
+    if(dtOpen.has(id)){dtOpen.delete(id);el.classList.add('hide');b.textContent='Mostrar detalhes'}
+    else{dtOpen.add(id);el.classList.remove('hide');b.textContent='Ocultar detalhes'}});
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>ask('Remover este CPF da lista de bloqueio?',async()=>{
     try{await DB.collection('blacklist').doc(b.dataset.r).delete();toast('CPF removido da lista')}catch(e){toast('Erro: '+(e&&e.message||e))}}));
 }
@@ -381,7 +397,7 @@ $('bladd').onclick=()=>{
   if(!validCPF(cpf))return m.textContent='CPF inválido.';
   if(!mot)return m.textContent='Informe o motivo.';
   if(BL.has(cpfN(cpf)))return m.textContent='Este CPF já está na lista.';
-  m.textContent='';marcarCPF(cpf,'',mot).then(()=>{$('blcpf').value='';$('blmot').value=''});
+  m.textContent='';marcarCPF(cpf,$('blnome').value.trim(),mot,null,$('blcont').value.trim()).then(()=>{['blcpf','blnome','blcont','blmot'].forEach(i=>$(i).value='')});
 };
 function renderUS(us){
   us.sort((a,b)=>String(a.apelido||'').localeCompare(String(b.apelido||'')));
@@ -528,7 +544,7 @@ function render(){
     const t=CACHE.find(x=>x.codigo===b.dataset.c);if(!t)return;document.querySelector('[data-t=gerar]').click();showTicket(t);window.scrollTo(0,0)});
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{
     const t=CACHE.find(x=>x.codigo===b.dataset.d);if(t)ask('Excluir o ingresso '+t.codigo+' de '+t.nome+'? Não dá para desfazer.',()=>delT(t.codigo))});
-  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const t=CACHE.find(x=>x.codigo===b.dataset.m);if(t)ask('Marcar o CPF '+t.cpf+' ('+t.nome+') na lista de bloqueio? Informe o motivo:',v=>marcarCPF(t.cpf,t.nome,v),'Motivo')});
+  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const t=CACHE.find(x=>x.codigo===b.dataset.m);if(t)ask('Marcar o CPF '+t.cpf+' ('+t.nome+') na lista de bloqueio? Informe o motivo:',v=>marcarCPF(t.cpf,t.nome,v,t),'Motivo')});
 }
 $('refresh').onclick=async()=>{
   const b=$('refresh');b.disabled=true;b.textContent='Atualizando…';
